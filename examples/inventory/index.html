@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Inventory</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #f5f5f5;
+      color: #1a1a1a;
+      min-height: 100vh;
+    }
+
+    header {
+      background: #fff;
+      border-bottom: 1px solid #e5e5e5;
+      padding: 0 2rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 56px;
+    }
+
+    header h1 {
+      font-size: 1.1rem;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+    }
+
+    header span {
+      font-size: 0.8rem;
+      color: #888;
+      background: #f0f0f0;
+      padding: 3px 10px;
+      border-radius: 999px;
+    }
+
+    main {
+      max-width: 900px;
+      margin: 2rem auto;
+      padding: 0 1.5rem;
+    }
+
+    .toolbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1.25rem;
+    }
+
+    .toolbar p {
+      font-size: 0.875rem;
+      color: #555;
+    }
+
+    button.add {
+      background: #1a1a1a;
+      color: #fff;
+      border: none;
+      padding: 7px 16px;
+      border-radius: 6px;
+      font-size: 0.875rem;
+      cursor: pointer;
+    }
+
+    button.add:hover { background: #333; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: #fff;
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.07);
+    }
+
+    thead tr {
+      background: #fafafa;
+      border-bottom: 1px solid #e5e5e5;
+    }
+
+    th {
+      text-align: left;
+      padding: 10px 16px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #888;
+    }
+
+    td {
+      padding: 12px 16px;
+      font-size: 0.875rem;
+      border-bottom: 1px solid #f0f0f0;
+    }
+
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: #fafafa; }
+
+    .badge {
+      display: inline-block;
+      padding: 2px 9px;
+      border-radius: 999px;
+      font-size: 0.75rem;
+      font-weight: 500;
+    }
+
+    .badge.in-stock  { background: #dcfce7; color: #166534; }
+    .badge.low-stock { background: #fef9c3; color: #854d0e; }
+    .badge.out       { background: #fee2e2; color: #991b1b; }
+
+    .qty { font-variant-numeric: tabular-nums; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Inventory</h1>
+    <span>inventory.local</span>
+  </header>
+
+  <main>
+    <div class="toolbar">
+      <p id="summary">Loading...</p>
+      <button class="add">+ Add Item</button>
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th>SKU</th>
+          <th>Name</th>
+          <th>Category</th>
+          <th>Qty</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody id="tbody"></tbody>
+    </table>
+  </main>
+
+  <script>
+    const items = [
+      { sku: 'EL-001', name: 'USB-C Hub (7-port)',     category: 'Electronics', qty: 42 },
+      { sku: 'EL-002', name: 'Mechanical Keyboard',    category: 'Electronics', qty: 3  },
+      { sku: 'EL-003', name: 'Monitor Stand',          category: 'Electronics', qty: 0  },
+      { sku: 'OF-001', name: 'Standing Desk Mat',      category: 'Office',      qty: 18 },
+      { sku: 'OF-002', name: 'Cable Management Tray',  category: 'Office',      qty: 7  },
+      { sku: 'OF-003', name: 'Whiteboard Markers',     category: 'Office',      qty: 2  },
+      { sku: 'ST-001', name: 'Bubble Wrap Roll (50m)', category: 'Storage',     qty: 11 },
+      { sku: 'ST-002', name: 'Cardboard Boxes (med)',  category: 'Storage',     qty: 0  },
+    ];
+
+    function statusFor(qty) {
+      if (qty === 0)  return { label: 'Out of stock', cls: 'out'       };
+      if (qty <= 5)   return { label: 'Low stock',    cls: 'low-stock' };
+      return              { label: 'In stock',    cls: 'in-stock'  };
+    }
+
+    const tbody = document.getElementById('tbody');
+    items.forEach(item => {
+      const s = statusFor(item.qty);
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td><code>${item.sku}</code></td>
+        <td>${item.name}</td>
+        <td>${item.category}</td>
+        <td class="qty">${item.qty}</td>
+        <td><span class="badge ${s.cls}">${s.label}</span></td>
+      `;
+      tbody.appendChild(tr);
+    });
+
+    const total = items.reduce((s, i) => s + i.qty, 0);
+    const outCount = items.filter(i => i.qty === 0).length;
+    document.getElementById('summary').textContent =
+      `${items.length} items · ${total} units total · ${outCount} out of stock`;
+  </script>
+</body>
+</html>

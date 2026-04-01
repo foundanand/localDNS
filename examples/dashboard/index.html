@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dashboard</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #f5f5f5;
+      color: #1a1a1a;
+      min-height: 100vh;
+    }
+
+    header {
+      background: #fff;
+      border-bottom: 1px solid #e5e5e5;
+      padding: 0 2rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 56px;
+    }
+
+    header h1 { font-size: 1.1rem; font-weight: 600; letter-spacing: -0.01em; }
+
+    header span {
+      font-size: 0.8rem;
+      color: #888;
+      background: #f0f0f0;
+      padding: 3px 10px;
+      border-radius: 999px;
+    }
+
+    main {
+      max-width: 960px;
+      margin: 2rem auto;
+      padding: 0 1.5rem;
+    }
+
+    .section-label {
+      font-size: 0.7rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      color: #888;
+      margin-bottom: 0.75rem;
+    }
+
+    /* --- Stat cards --- */
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 1rem;
+      margin-bottom: 2rem;
+    }
+
+    .card {
+      background: #fff;
+      border-radius: 8px;
+      padding: 1.25rem 1.5rem;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.07);
+    }
+
+    .card .label {
+      font-size: 0.75rem;
+      color: #888;
+      margin-bottom: 0.5rem;
+    }
+
+    .card .value {
+      font-size: 1.75rem;
+      font-weight: 700;
+      letter-spacing: -0.03em;
+      line-height: 1;
+    }
+
+    .card .delta {
+      font-size: 0.75rem;
+      margin-top: 0.4rem;
+    }
+
+    .up   { color: #16a34a; }
+    .down { color: #dc2626; }
+
+    /* --- Charts row --- */
+    .charts {
+      display: grid;
+      grid-template-columns: 2fr 1fr;
+      gap: 1rem;
+      margin-bottom: 2rem;
+    }
+
+    .chart-card {
+      background: #fff;
+      border-radius: 8px;
+      padding: 1.25rem 1.5rem;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.07);
+    }
+
+    .chart-card .title {
+      font-size: 0.875rem;
+      font-weight: 600;
+      margin-bottom: 1.25rem;
+    }
+
+    /* Bar chart */
+    .bars {
+      display: flex;
+      align-items: flex-end;
+      gap: 6px;
+      height: 120px;
+    }
+
+    .bar-col {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      height: 100%;
+      justify-content: flex-end;
+    }
+
+    .bar {
+      width: 100%;
+      background: #1a1a1a;
+      border-radius: 3px 3px 0 0;
+      min-height: 4px;
+    }
+
+    .bar.highlight { background: #6366f1; }
+
+    .bar-label {
+      font-size: 0.65rem;
+      color: #aaa;
+      white-space: nowrap;
+    }
+
+    /* Donut */
+    .donut-wrap {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    svg.donut { overflow: visible; }
+
+    .legend {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      width: 100%;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.775rem;
+    }
+
+    .legend-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .legend-item span:last-child { margin-left: auto; color: #888; }
+
+    /* --- Activity --- */
+    .activity-card {
+      background: #fff;
+      border-radius: 8px;
+      padding: 1.25rem 1.5rem;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.07);
+    }
+
+    .activity-card .title {
+      font-size: 0.875rem;
+      font-weight: 600;
+      margin-bottom: 1rem;
+    }
+
+    .feed { list-style: none; }
+
+    .feed li {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      padding: 8px 0;
+      border-bottom: 1px solid #f0f0f0;
+      font-size: 0.825rem;
+    }
+
+    .feed li:last-child { border-bottom: none; }
+
+    .dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      margin-top: 5px;
+      flex-shrink: 0;
+    }
+
+    .feed .time { margin-left: auto; color: #aaa; font-size: 0.75rem; white-space: nowrap; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Dashboard</h1>
+    <span>dashboard.local</span>
+  </header>
+
+  <main>
+    <!-- Stats -->
+    <div class="section-label">Overview</div>
+    <div class="stats">
+      <div class="card">
+        <div class="label">Total Revenue</div>
+        <div class="value">$84,320</div>
+        <div class="delta up">↑ 12% vs last month</div>
+      </div>
+      <div class="card">
+        <div class="label">Orders</div>
+        <div class="value">1,204</div>
+        <div class="delta up">↑ 8% vs last month</div>
+      </div>
+      <div class="card">
+        <div class="label">Active Users</div>
+        <div class="value">3,871</div>
+        <div class="delta down">↓ 3% vs last month</div>
+      </div>
+      <div class="card">
+        <div class="label">Avg. Order Value</div>
+        <div class="value">$70</div>
+        <div class="delta up">↑ 4% vs last month</div>
+      </div>
+    </div>
+
+    <!-- Charts -->
+    <div class="section-label">Analytics</div>
+    <div class="charts">
+      <div class="chart-card">
+        <div class="title">Revenue — last 8 weeks</div>
+        <div class="bars" id="bars"></div>
+      </div>
+      <div class="chart-card">
+        <div class="title">Orders by category</div>
+        <div class="donut-wrap">
+          <svg class="donut" width="110" height="110" viewBox="0 0 110 110" id="donut"></svg>
+          <div class="legend" id="legend"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Activity -->
+    <div class="section-label">Recent activity</div>
+    <div class="activity-card">
+      <div class="title">Live feed</div>
+      <ul class="feed" id="feed"></ul>
+    </div>
+  </main>
+
+  <script>
+    // --- Bar chart ---
+    const weeks = ['W21','W22','W23','W24','W25','W26','W27','W28'];
+    const values = [6200, 7400, 6900, 8100, 7700, 9300, 8600, 10400];
+    const max = Math.max(...values);
+    const barsEl = document.getElementById('bars');
+
+    weeks.forEach((w, i) => {
+      const col = document.createElement('div');
+      col.className = 'bar-col';
+      const pct = (values[i] / max) * 100;
+      col.innerHTML = `
+        <div class="bar${i === weeks.length - 1 ? ' highlight' : ''}" style="height:${pct}%"></div>
+        <span class="bar-label">${w}</span>
+      `;
+      barsEl.appendChild(col);
+    });
+
+    // --- Donut chart ---
+    const segments = [
+      { label: 'Electronics', value: 38, color: '#6366f1' },
+      { label: 'Office',      value: 27, color: '#1a1a1a' },
+      { label: 'Storage',     value: 20, color: '#a3a3a3' },
+      { label: 'Other',       value: 15, color: '#e5e5e5' },
+    ];
+    const total = segments.reduce((s, d) => s + d.value, 0);
+    const cx = 55, cy = 55, r = 40, stroke = 18;
+    const circ = 2 * Math.PI * r;
+    let offset = 0;
+    const donutEl = document.getElementById('donut');
+    const legendEl = document.getElementById('legend');
+
+    segments.forEach(seg => {
+      const dash = (seg.value / total) * circ;
+      const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      circle.setAttribute('cx', cx);
+      circle.setAttribute('cy', cy);
+      circle.setAttribute('r', r);
+      circle.setAttribute('fill', 'none');
+      circle.setAttribute('stroke', seg.color);
+      circle.setAttribute('stroke-width', stroke);
+      circle.setAttribute('stroke-dasharray', `${dash} ${circ - dash}`);
+      circle.setAttribute('stroke-dashoffset', -offset);
+      circle.setAttribute('transform', `rotate(-90 ${cx} ${cy})`);
+      donutEl.appendChild(circle);
+      offset += dash;
+
+      const item = document.createElement('div');
+      item.className = 'legend-item';
+      item.innerHTML = `
+        <span class="legend-dot" style="background:${seg.color}"></span>
+        <span>${seg.label}</span>
+        <span>${seg.value}%</span>
+      `;
+      legendEl.appendChild(item);
+    });
+
+    // --- Activity feed ---
+    const events = [
+      { color: '#6366f1', msg: 'Order #10482 placed by Sarah K.',      time: '2m ago'  },
+      { color: '#16a34a', msg: 'Payment received for order #10479',     time: '11m ago' },
+      { color: '#1a1a1a', msg: 'New user registered: m.torres@co.io',   time: '24m ago' },
+      { color: '#f59e0b', msg: 'Low stock alert: Mechanical Keyboard',  time: '38m ago' },
+      { color: '#16a34a', msg: 'Order #10476 shipped',                  time: '1h ago'  },
+      { color: '#dc2626', msg: 'Order #10471 refund requested',         time: '2h ago'  },
+      { color: '#1a1a1a', msg: 'Inventory updated: 12 items restocked', time: '3h ago'  },
+    ];
+
+    const feedEl = document.getElementById('feed');
+    events.forEach(e => {
+      const li = document.createElement('li');
+      li.innerHTML = `
+        <span class="dot" style="background:${e.color}"></span>
+        <span>${e.msg}</span>
+        <span class="time">${e.time}</span>
+      `;
+      feedEl.appendChild(li);
+    });
+  </script>
+</body>
+</html>

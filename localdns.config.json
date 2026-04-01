@@ -1,0 +1,7 @@
+{
+  "port": 80,
+  "domains": {
+    "inventory": 3000,
+    "dashboard": 6000
+  }
+}
