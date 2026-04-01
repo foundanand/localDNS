@@ -1,5 +1,9 @@
 # localDNS
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Node.js](https://img.shields.io/badge/node-%3E%3D14-brightgreen)](https://nodejs.org)
+[![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux-lightgrey)](#requirements)
+
 Expose local dev servers as real domains with trusted HTTPS — accessible from any device on your network without touching certificate settings.
 
 ```
@@ -30,34 +34,49 @@ No domain needed. Uses mDNS to broadcast `.local` hostnames on the LAN. Other de
 ## Requirements
 
 - **Node.js** >= 14
-- **macOS** or **Linux**
-- **sudo** for binding to ports 80 and 443
+- **macOS** or **Linux** — Windows is not currently supported ([upvote or track here](https://github.com/foundanand/localDNS/issues))
+- **sudo** — required to bind to ports 80 and 443 (privileged ports). Use `--port 8443` to avoid this.
 
 **Pro mode additionally:**
 - A domain managed by Cloudflare (free tier works)
 - Cloudflare API token with `Zone:DNS:Edit` permission
 
 **Quick mode additionally:**
-- mkcert — `brew install mkcert` (macOS) or [releases](https://github.com/FiloSottile/mkcert/releases)
+- mkcert — `brew install mkcert` (macOS) or [download a binary](https://github.com/FiloSottile/mkcert/releases) (Linux)
 
 ---
 
 ## Installation
 
+### Recommended — global install via npm
+
+```bash
+npm install -g localdns
+```
+
+### From source
+
 ```bash
 git clone https://github.com/foundanand/localDNS.git
 cd localDNS
 npm install
-
-# Or install globally
 npm install -g .
+```
+
+### Without installing globally
+
+```bash
+git clone https://github.com/foundanand/localDNS.git
+cd localDNS
+npm install
+node bin/localdns.js
 ```
 
 ---
 
 ## Pro mode setup
 
-**1. Create `localdns.config.json`:**
+**1. Create `localdns.config.json`** in your project directory:
 
 ```json
 {
@@ -83,10 +102,42 @@ Get a token at **Cloudflare Dashboard → My Profile → API Tokens → Create T
 **3. Run:**
 
 ```bash
-sudo node bin/localdns.js
+sudo localdns
 ```
 
-**First run** takes about 1 minute — localDNS sets a DNS TXT record in Cloudflare and waits for it to propagate to public resolvers before Let's Encrypt can validate it. This only happens once. After that the certificate is cached in `~/.localmap/certs/` and startup is instant.
+**What happens on first run** (~1 minute):
+1. DNS A records are set in Cloudflare pointing to your LAN IP
+2. A DNS-01 ACME challenge is issued — localDNS sets a TXT record in Cloudflare and waits for it to propagate through public resolvers
+3. Let's Encrypt validates the challenge and issues a wildcard certificate
+4. The proxy starts and your domains are live
+
+You will see output like:
+```
+localDNS starting...
+LAN IP : 192.168.1.42
+Mode   : Cloudflare + Let's Encrypt (yourdomain.com)
+
+DNS records (Cloudflare):
+  inventory.yourdomain.com -> 192.168.1.42  (created)
+  dashboard.yourdomain.com -> 192.168.1.42  (created)
+
+Certificates (Let's Encrypt):
+  Obtaining Let's Encrypt certificate via DNS-01...
+  Setting DNS TXT record for ACME challenge...
+  Waiting for DNS propagation...
+  DNS propagation confirmed
+  Certificate issued, valid until 2025-07-01
+
+Starting proxy:
+  HTTPS :443  -> proxying by Host header
+  HTTP  :80   -> redirects to HTTPS
+
+Ready:
+  https://inventory.yourdomain.com
+  https://dashboard.yourdomain.com
+```
+
+After the first run, the certificate is cached in `~/.localmap/certs/` and startup is instant.
 
 **4. Open on any device on the same Wi-Fi:**
 
@@ -115,7 +166,7 @@ No certificate prompts. No setup on other devices.
 **2. Run:**
 
 ```bash
-sudo node bin/localdns.js
+sudo localdns
 ```
 
 mkcert installs a local CA on first run (may prompt for your password), then generates a certificate covering all configured `.local` domains.
@@ -128,6 +179,39 @@ https://dashboard.local
 ```
 
 **Trusting HTTPS on other devices** requires installing the CA certificate once per device. The startup output prints the CA cert path and per-platform instructions.
+
+---
+
+## Using localDNS in a Next.js (or any Node) project
+
+See [docs/local-development.md](docs/local-development.md) for the full guide. The short version:
+
+**1. Install as a dev dependency:**
+
+```bash
+# Once npm package is published:
+npm install --save-dev localdns
+
+# Until then, symlink directly:
+ln -s /path/to/localDNS node_modules/localdns
+```
+
+**2. Add `localdns.config.json`** to your project root (see example in [`localdns.config.example.json`](localdns.config.example.json)).
+
+**3. Add a script to `package.json`:**
+
+```json
+"scripts": {
+  "dev:proxy": "sudo localdns --config localdns.config.json"
+}
+```
+
+**4. Run alongside your dev server:**
+
+```bash
+npm run dev          # your app
+sudo npm run dev:proxy   # localDNS proxy
+```
 
 ---
 
@@ -249,7 +333,7 @@ node examples/inventory/server.js    # port 3000
 node examples/dashboard/server.js    # port 6000
 
 # Terminal 3
-sudo node bin/localdns.js
+sudo localdns
 ```
 
 ---
@@ -264,16 +348,18 @@ localDNS/
 │   ├── config.js          Config loading, validation, .env parsing
 │   ├── cloudflare.js      Cloudflare API — zone lookup, A records, ACME TXT records
 │   ├── acme.js            Let's Encrypt DNS-01 flow, cert cache, renewal scheduler
-│   ├── certs.js           mkcert integration (quick mode fallback)
+│   ├── certs.js           mkcert integration (quick mode)
 │   ├── proxy.js           HTTP/HTTPS reverse proxy, WebSocket support
 │   ├── mdns.js            mDNS registration — dns-sd (macOS), avahi (Linux)
 │   ├── ip.js              LAN IP detection
 │   └── cleanup.js         Signal handling, child process cleanup
+├── docs/
+│   └── local-development.md   Using localDNS in your own projects
 ├── examples/
 │   ├── inventory/         Example inventory app (port 3000)
 │   └── dashboard/         Example dashboard app (port 6000)
-├── .env.example           Environment variable template
-└── localdns.config.json   Configuration
+├── localdns.config.example.json   Config template
+└── .env.example                   Environment variable template
 ```
 
 ---
@@ -284,7 +370,7 @@ localDNS/
 Add it to a `.env` file next to your config. See `.env.example` for the format.
 
 **Cloudflare zone not found**
-Verify the token has `Zone:DNS:Edit` permission and is scoped to the correct domain.
+Verify the token has `Zone:DNS:Edit` permission and is scoped to the correct domain. You can test the token at Cloudflare Dashboard → My Profile → API Tokens → the token's row → Test.
 
 **First run shows "TXT record not confirmed in public DNS — proceeding anyway"**
 This warning is harmless. It means the DNS propagation polling timed out but Let's Encrypt validated successfully anyway. If the certificate was issued, you can ignore it.
@@ -296,7 +382,7 @@ Delete `~/.localmap/certs/` and retry. Verify `CF_API_TOKEN` has the correct per
 After a new A record, DNS can take up to 60 seconds to propagate. TTL is set to 60s so stale LAN IP records clear quickly.
 
 **`EACCES` on port 443 or 80**
-Run with `sudo`. Use `--port 8443` to avoid privileged ports (URLs will include the port number).
+Run with `sudo`. This is required to bind to privileged ports (< 1024). Use `--port 8443` to avoid sudo — your URLs will include the port number.
 
 **Quick mode: `.local` not resolving on another device**
 Both devices must be on the same Wi-Fi (not one on Ethernet). Check your firewall allows UDP 5353. Verify on macOS with `dns-sd -G v4 inventory.local`.
@@ -306,6 +392,15 @@ Both devices must be on the same Wi-Fi (not one on Ethernet). Check your firewal
 
 ---
 
+## Contributing
+
+Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+
+Found a bug? [Open an issue](https://github.com/foundanand/localDNS/issues).
+Have a question? [Start a discussion](https://github.com/foundanand/localDNS/discussions).
+
+---
+
 ## License
 
-MIT
+MIT — see [LICENSE](LICENSE).
