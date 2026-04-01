@@ -1,3 +1,15 @@
-node_modules/
-certs/
+# Environment / secrets
 .env
+.env.*
+!.env.example
+
+# Personal config (each project has its own — this one is for running examples locally)
+localdns.config.json
+
+# TLS certificates and private keys
+*.pem
+*.key
+certs/
+
+# Dependency directory
+node_modules/

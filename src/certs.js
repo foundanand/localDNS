@@ -1,6 +1,6 @@
 'use strict';
 
-const { execSync, spawnSync } = require('child_process');
+const { spawnSync } = require('child_process');
 const fs   = require('fs');
 const path = require('path');
 
@@ -14,9 +14,8 @@ function getMkcertRunner() {
   if (sudoUser && isRoot) {
     // Find mkcert in the original user's PATH
     let mkcertPath;
-    try {
-      mkcertPath = execSync(`sudo -u ${sudoUser} which mkcert 2>/dev/null`, { encoding: 'utf8' }).trim();
-    } catch (_) {}
+    const r = spawnSync('sudo', ['-u', sudoUser, 'which', 'mkcert'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+    if (r.status === 0) mkcertPath = r.stdout.trim();
 
     // Fallback to common Homebrew locations
     if (!mkcertPath) {
@@ -41,20 +40,14 @@ function checkMkcert() {
 
   if (sudoUser && isRoot) {
     // Check as the original user
-    try {
-      execSync(`sudo -u ${sudoUser} which mkcert`, { stdio: 'ignore' });
-      return true;
-    } catch (_) {}
+    const r = spawnSync('sudo', ['-u', sudoUser, 'which', 'mkcert'], { stdio: 'ignore' });
+    if (r.status === 0) return true;
     // Also try known paths
     return ['/opt/homebrew/bin/mkcert', '/usr/local/bin/mkcert'].some(p => fs.existsSync(p));
   }
 
-  try {
-    execSync('which mkcert', { stdio: 'ignore' });
-    return true;
-  } catch (_) {
-    return false;
-  }
+  const r = spawnSync('which', ['mkcert'], { stdio: 'ignore' });
+  return r.status === 0;
 }
 
 function generateCerts(domains, certsDir) {
@@ -106,7 +99,7 @@ function generateCerts(domains, certsDir) {
   const sudoUser = process.env.SUDO_USER;
   if (sudoUser) {
     try {
-      execSync(`chown ${sudoUser} "${certFile}" "${keyFile}" "${certsDir}"`, { stdio: 'ignore' });
+      spawnSync('chown', [sudoUser, certFile, keyFile, certsDir], { stdio: 'ignore' });
     } catch (_) {}
   }
 

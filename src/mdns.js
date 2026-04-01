@@ -1,15 +1,27 @@
 'use strict';
 
-const { spawn, execSync } = require('child_process');
+const { spawn, spawnSync } = require('child_process');
 const { register } = require('./cleanup');
 
 function checkCommand(cmd) {
-  try {
-    execSync(`which ${cmd}`, { stdio: 'ignore' });
-    return true;
-  } catch (_) {
-    return false;
-  }
+  const r = spawnSync('which', [cmd], { stdio: 'ignore' });
+  return r.status === 0;
+}
+
+function spawnDnsSd(name, args) {
+  const cp = spawn('dns-sd', args, { stdio: ['ignore', 'ignore', 'pipe'] });
+  cp.stderr.on('data', (d) => {
+    const msg = d.toString().trim();
+    if (msg) console.error(`[dns-sd:${name}] ${msg}`);
+  });
+  cp.on('exit', (code, signal) => {
+    if (signal !== 'SIGTERM') {
+      console.error(`[dns-sd:${name}] exited unexpectedly (code=${code}), retrying in 3s...`);
+      setTimeout(() => spawnDnsSd(name, args), 3000);
+    }
+  });
+  register(cp);
+  return cp;
 }
 
 function registerMdnsMac(domains, proxyPort, lanIp, ssl) {
@@ -25,24 +37,7 @@ function registerMdnsMac(domains, proxyPort, lanIp, ssl) {
     // dns-sd -P: register a proxy service with a custom hostname and IP
     // This advertises the service AND registers the A record for hostname.local
     const args = ['-P', name, serviceType, 'local', String(proxyPort), hostname, lanIp, `port=${targetPort}`];
-    const cp = spawn('dns-sd', args, { stdio: ['ignore', 'ignore', 'pipe'] });
-
-    cp.stderr.on('data', (d) => {
-      const msg = d.toString().trim();
-      if (msg) console.error(`[dns-sd:${name}] ${msg}`);
-    });
-
-    cp.on('exit', (code, signal) => {
-      if (signal !== 'SIGTERM') {
-        console.error(`[dns-sd:${name}] exited unexpectedly (code=${code}), retrying in 3s...`);
-        setTimeout(() => {
-          const retry = spawn('dns-sd', args, { stdio: ['ignore', 'ignore', 'pipe'] });
-          register(retry);
-        }, 3000);
-      }
-    });
-
-    register(cp);
+    spawnDnsSd(name, args);
     console.log(`  ${hostname} -> localhost:${targetPort}  [${lanIp}:${proxyPort}]`);
   }
 }

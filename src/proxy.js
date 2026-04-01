@@ -126,7 +126,7 @@ function startProxy(domains, proxyPort, sslOpts) {
   proxy.on('error', (err, req, res) => {
     const host = req.headers.host || 'unknown';
     console.error(`[proxy] Error forwarding ${host}: ${err.message}`);
-    if (res.writeHead) {
+    if (!res.headersSent) {
       res.writeHead(502, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: 'Bad Gateway', message: err.message }));
     }
@@ -135,6 +135,7 @@ function startProxy(domains, proxyPort, sslOpts) {
   const handler = makeRequestHandler(routeMap, proxy, domains);
   const baseDomain = sslOpts && sslOpts.baseDomain;
   let server;
+  let redirectServer = null;
 
   if (sslOpts) {
     const credentials = {
@@ -145,16 +146,16 @@ function startProxy(domains, proxyPort, sslOpts) {
 
     // HTTP server: landing page + CA cert download + HTTPS redirect
     const redirectPort = sslOpts.redirectPort || 80;
-    http.createServer((req, res) => {
+    redirectServer = http.createServer((req, res) => {
       const host = (req.headers.host || '').split(':')[0];
       const portSuffix = proxyPort === 443 ? '' : `:${proxyPort}`;
       res.writeHead(301, { Location: `https://${host}${portSuffix}${req.url}` });
       res.end();
-    })
-    .listen(redirectPort, () => {
+    });
+    redirectServer.listen(redirectPort, () => {
       console.log(`  HTTP  :${redirectPort}  -> redirects to HTTPS`);
-    })
-    .on('error', (err) => {
+    });
+    redirectServer.on('error', (err) => {
       if (err.code === 'EACCES') {
         console.warn(`  Note: could not bind HTTP redirect on port ${redirectPort} (run with sudo to enable)`);
       } else if (err.code !== 'EADDRINUSE') {
@@ -192,7 +193,7 @@ function startProxy(domains, proxyPort, sslOpts) {
     console.log(`  ${proto} :${proxyPort}  -> proxying by Host header`);
   });
 
-  return server;
+  return { server, redirectServer };
 }
 
 module.exports = { startProxy };

@@ -131,7 +131,7 @@ async function main() {
 
   // --- Proxy ---
   console.log('Starting proxy:');
-  const server = startProxy(config.domains, proxyPort, sslOpts);
+  const { server } = startProxy(config.domains, proxyPort, sslOpts);
 
   // Schedule background renewal now that we have the server reference for hot-reload
   if (useAcme) {

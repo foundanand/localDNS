@@ -1,6 +1,7 @@
 'use strict';
 
 const https = require('https');
+const { parse: parseDomain } = require('tldts');
 
 // Minimal Cloudflare v4 API client — only what we need
 function cfFetch(apiToken, method, path, body) {
@@ -10,6 +11,7 @@ function cfFetch(apiToken, method, path, body) {
       hostname: 'api.cloudflare.com',
       path: `/client/v4${path}`,
       method,
+      timeout: 10000,
       headers: {
         'Authorization': `Bearer ${apiToken}`,
         'Content-Type': 'application/json',
@@ -28,9 +30,13 @@ function cfFetch(apiToken, method, path, body) {
             resolve(json);
           }
         } catch (e) {
-          reject(new Error(`Failed to parse Cloudflare response: ${data}`));
+          const preview = data.length > 200 ? data.slice(0, 200) + '…' : data;
+          reject(new Error(`Failed to parse Cloudflare response: ${preview}`));
         }
       });
+    });
+    req.on('timeout', () => {
+      req.destroy(new Error(`Cloudflare API request timed out (${method} /client/v4${path})`));
     });
     req.on('error', reject);
     if (payload) req.write(payload);
@@ -38,11 +44,12 @@ function cfFetch(apiToken, method, path, body) {
   });
 }
 
-// Parse the apex domain from something like "local.myteam.dev" -> "myteam.dev"
+// Parse the registrable domain (apex) using the Public Suffix List.
+// Handles multi-label TLDs correctly: "local.myteam.co.uk" -> "myteam.co.uk"
 function getApexDomain(baseDomain) {
-  const parts = baseDomain.split('.');
-  if (parts.length < 2) throw new Error(`Invalid baseDomain: ${baseDomain}`);
-  return parts.slice(-2).join('.');
+  const result = parseDomain(baseDomain);
+  if (!result.domain) throw new Error(`Could not determine registrable domain for: "${baseDomain}"`);
+  return result.domain;
 }
 
 async function getZoneId(apiToken, baseDomain) {

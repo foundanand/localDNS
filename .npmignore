@@ -1,0 +1,15 @@
+# Never ship personal/dev config
+localdns.config.json
+.env
+.env.*
+
+# Never ship certs or keys
+*.pem
+*.key
+certs/
+
+# Dev/test artifacts
+node_modules/
+.git/
+
+# Docs and examples are useful for npm — intentionally not excluded

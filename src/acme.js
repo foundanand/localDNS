@@ -18,7 +18,7 @@ const KEY_FILE     = path.join(CERT_DIR, 'wildcard-key.pem');
 const RENEW_THRESHOLD_DAYS = 30;
 
 function ensureCertDir() {
-  if (!fs.existsSync(CERT_DIR)) fs.mkdirSync(CERT_DIR, { recursive: true });
+  if (!fs.existsSync(CERT_DIR)) fs.mkdirSync(CERT_DIR, { recursive: true, mode: 0o700 });
 }
 
 function loadMeta() {
@@ -38,7 +38,7 @@ async function loadOrCreateAccountKey() {
     return fs.readFileSync(ACCOUNT_KEY);
   }
   const key = await acme.crypto.createPrivateKey();
-  fs.writeFileSync(ACCOUNT_KEY, key);
+  fs.writeFileSync(ACCOUNT_KEY, key, { mode: 0o600 });
   return key;
 }
 
@@ -119,9 +119,9 @@ async function obtainCert(baseDomain, cloudflareToken, email) {
   const certInfo  = await acme.crypto.readCertificateInfo(cert);
   const expiresAt = certInfo.notAfter;
 
-  fs.writeFileSync(CERT_FILE, cert);
-  fs.writeFileSync(KEY_FILE, certKey);
-  fs.writeFileSync(META_FILE, JSON.stringify({ baseDomain, expiresAt }, null, 2));
+  fs.writeFileSync(CERT_FILE, cert, { mode: 0o644 });
+  fs.writeFileSync(KEY_FILE, certKey, { mode: 0o600 });
+  fs.writeFileSync(META_FILE, JSON.stringify({ baseDomain, expiresAt }, null, 2), { mode: 0o644 });
 
   console.log(`  Certificate issued, valid until ${expiresAt.toISOString().split('T')[0]}`);
   return { certFile: CERT_FILE, keyFile: KEY_FILE };

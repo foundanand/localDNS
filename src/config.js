@@ -16,7 +16,10 @@ function loadEnv(dir) {
     const eq = trimmed.indexOf('=');
     if (eq < 0) continue;
     const key = trimmed.slice(0, eq).trim();
-    const val = trimmed.slice(eq + 1).trim().replace(/^["']|["']$/g, '');
+    const raw = trimmed.slice(eq + 1).trim();
+    const val = (raw.length >= 2 && raw[0] === raw[raw.length - 1] && (raw[0] === '"' || raw[0] === "'"))
+      ? raw.slice(1, -1)
+      : raw;
     if (key && !(key in process.env)) process.env[key] = val;
   }
 }
