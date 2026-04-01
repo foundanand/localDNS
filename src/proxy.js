@@ -84,12 +84,13 @@ function buildCertPage(certUrl, domains, proxyPort) {
 </html>`;
 }
 
-function buildRouteMap(domains) {
+function buildRouteMap(domains, baseDomain) {
   const map = new Map();
   for (const { name, targetPort } of domains) {
     const target = `http://localhost:${targetPort}`;
     map.set(`${name}.local`, target);
-    map.set(name, target); // fallback for clients that strip .local
+    map.set(name, target);
+    if (baseDomain) map.set(`${name}.${baseDomain}`, target);
   }
   return map;
 }
@@ -119,7 +120,7 @@ function makeRequestHandler(routeMap, proxy, domains) {
 }
 
 function startProxy(domains, proxyPort, sslOpts) {
-  const routeMap = buildRouteMap(domains);
+  const routeMap = buildRouteMap(domains, sslOpts && sslOpts.baseDomain);
   const proxy = httpProxy.createProxyServer({ xfwd: true });
 
   proxy.on('error', (err, req, res) => {
@@ -132,6 +133,7 @@ function startProxy(domains, proxyPort, sslOpts) {
   });
 
   const handler = makeRequestHandler(routeMap, proxy, domains);
+  const baseDomain = sslOpts && sslOpts.baseDomain;
   let server;
 
   if (sslOpts) {
@@ -143,29 +145,7 @@ function startProxy(domains, proxyPort, sslOpts) {
 
     // HTTP server: landing page + CA cert download + HTTPS redirect
     const redirectPort = sslOpts.redirectPort || 80;
-    const caCertPath   = sslOpts.caCertPath || null;
-    const lanIp        = sslOpts.lanIp || 'localhost';
     http.createServer((req, res) => {
-      // CA cert download
-      if (req.url === '/localdns-ca.crt' && caCertPath && fs.existsSync(caCertPath)) {
-        res.writeHead(200, {
-          'Content-Type': 'application/x-x509-ca-cert',
-          'Content-Disposition': 'attachment; filename="localdns-ca.crt"',
-        });
-        fs.createReadStream(caCertPath).pipe(res);
-        return;
-      }
-
-      // Landing page — shown when visiting http://<ip>/ directly
-      if (req.url === '/' || req.url === '') {
-        const certUrl = `http://${lanIp}/localdns-ca.crt`;
-        const html = buildCertPage(certUrl, domains, proxyPort);
-        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-        res.end(html);
-        return;
-      }
-
-      // Everything else → HTTPS redirect
       const host = (req.headers.host || '').split(':')[0];
       const portSuffix = proxyPort === 443 ? '' : `:${proxyPort}`;
       res.writeHead(301, { Location: `https://${host}${portSuffix}${req.url}` });

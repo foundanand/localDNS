@@ -1,61 +1,67 @@
 # localDNS
 
-Expose your local dev servers as `.local` mDNS domains on your Wi-Fi network. Test your apps on any device — phones, tablets, other computers — using friendly domain names like `inventory.local` and `dashboard.local` instead of memorizing IP addresses and ports.
+Expose local dev servers as real domains with trusted HTTPS — accessible from any device on your network without touching certificate settings.
 
 ```
-https://inventory.local   →   localhost:3000
-https://dashboard.local   →   localhost:6000
+https://inventory.yourdomain.com  →  localhost:3000
+https://dashboard.yourdomain.com  →  localhost:6000
 ```
+
+No "connection not secure" warnings. No cert installation on other devices. Works on every phone, tablet, and computer on your Wi-Fi.
 
 ---
 
-## Features
+## Two modes
 
-- **`.local` domains over Wi-Fi** — any device on the same network can reach your dev servers by name
-- **HTTPS by default** — auto-generates trusted SSL certificates via [mkcert](https://github.com/FiloSottile/mkcert)
-- **HTTP → HTTPS redirect** — port 80 redirects to 443 automatically when SSL is enabled
-- **WebSocket support** — proxies WebSocket upgrades for Vite HMR, Next.js Fast Refresh, etc.
-- **Graceful shutdown** — cleans up mDNS registrations on Ctrl+C
-- **Minimal dependencies** — one npm package (`http-proxy`), rest is built-in Node.js
+### Pro mode — Cloudflare + Let's Encrypt (recommended)
+
+Uses a real domain you own. localDNS sets the DNS A records in Cloudflare and obtains a Let's Encrypt certificate automatically. Every device on the network trusts it out of the box — no setup on other devices at all.
+
+**What you need:** a domain managed by Cloudflare, a Cloudflare API token.
+
+### Quick mode — mDNS `.local`
+
+No domain needed. Uses mDNS to broadcast `.local` hostnames on the LAN. Other devices need to install a CA certificate once.
+
+**What you need:** mkcert (`brew install mkcert`), sudo.
 
 ---
 
 ## Requirements
 
 - **Node.js** >= 14
-- **macOS** or **Linux** (Windows is not supported)
-- **mkcert** (optional, for HTTPS)
-  - macOS: `brew install mkcert`
-  - Linux: `apt install mkcert` or see [mkcert releases](https://github.com/FiloSottile/mkcert/releases)
-- **Sudo / root access** for binding to ports 80 and 443
+- **macOS** or **Linux**
+- **sudo** for binding to ports 80 and 443
+
+**Pro mode additionally:**
+- A domain managed by Cloudflare (free tier works)
+- Cloudflare API token with `Zone:DNS:Edit` permission
+
+**Quick mode additionally:**
+- mkcert — `brew install mkcert` (macOS) or [releases](https://github.com/FiloSottile/mkcert/releases)
 
 ---
 
 ## Installation
 
-### Global install (recommended)
-
-```bash
-npm install -g localdns
-```
-
-### Local install
-
 ```bash
 git clone https://github.com/foundanand/localDNS.git
 cd localDNS
 npm install
+
+# Or install globally
+npm install -g .
 ```
 
 ---
 
-## Quick Start
+## Pro mode setup
 
-**1. Create a config file** in your project root:
+**1. Create `localdns.config.json`:**
 
 ```json
 {
-  "port": 80,
+  "baseDomain": "yourdomain.com",
   "domains": {
     "inventory": 3000,
     "dashboard": 6000
@@ -63,270 +69,240 @@ npm install
 }
 ```
 
-**2. Start your dev servers** on the configured ports.
+`baseDomain` can be your apex domain (`yourdomain.com`) or any subdomain (`dev.yourdomain.com`). localDNS will create `inventory.yourdomain.com`, `dashboard.yourdomain.com`, etc.
 
-**3. Run localDNS:**
+**2. Create `.env`** in the same directory (never commit this):
+
+```env
+CF_API_TOKEN=your_cloudflare_api_token_here
+CF_EMAIL=you@example.com
+```
+
+Get a token at **Cloudflare Dashboard → My Profile → API Tokens → Create Token**, using the **Edit zone DNS** template scoped to your domain.
+
+**3. Run:**
 
 ```bash
-# If installed globally
-sudo localdns
-
-# From the repo
 sudo node bin/localdns.js
 ```
 
-**4. Open on any device** on the same Wi-Fi:
+**First run** takes about 1 minute — localDNS sets a DNS TXT record in Cloudflare and waits for it to propagate to public resolvers before Let's Encrypt can validate it. This only happens once. After that the certificate is cached in `~/.localmap/certs/` and startup is instant.
+
+**4. Open on any device on the same Wi-Fi:**
+
+```
+https://inventory.yourdomain.com
+https://dashboard.yourdomain.com
+```
+
+No certificate prompts. No setup on other devices.
+
+---
+
+## Quick mode setup
+
+**1. Create `localdns.config.json`** — no `baseDomain` field:
+
+```json
+{
+  "domains": {
+    "inventory": 3000,
+    "dashboard": 6000
+  }
+}
+```
+
+**2. Run:**
+
+```bash
+sudo node bin/localdns.js
+```
+
+mkcert installs a local CA on first run (may prompt for your password), then generates a certificate covering all configured `.local` domains.
+
+**3. Access from this machine:**
 
 ```
 https://inventory.local
 https://dashboard.local
 ```
 
-> On first HTTPS run, mkcert installs a local CA into your system trust store. Other devices need to [trust the CA certificate](#trusting-ssl-on-other-devices) manually.
+**Trusting HTTPS on other devices** requires installing the CA certificate once per device. The startup output prints the CA cert path and per-platform instructions.
 
 ---
 
-## Configuration
+## Configuration reference
 
-localDNS looks for `localdns.config.json` in the current directory by default.
+`localdns.config.json`:
 
-```json
-{
-  "port": 80,
-  "domains": {
-    "my-app": 3000,
-    "api": 4000,
-    "docs": 8080
-  }
-}
-```
+| Field        | Type   | Required          | Description                                                     |
+|--------------|--------|-------------------|-----------------------------------------------------------------|
+| `domains`    | object | Yes               | Map of name → local port. e.g. `{ "api": 4000 }`               |
+| `baseDomain` | string | Pro mode only     | Domain root for subdomains. e.g. `"yourdomain.com"`             |
+| `port`       | number | No (default: 443) | Proxy listen port. Defaults to 443 with SSL, 80 without         |
 
-| Field     | Type   | Default | Description                                           |
-|-----------|--------|---------|-------------------------------------------------------|
-| `port`    | number | `80`    | Port the proxy listens on (overridden by `--port`)    |
-| `domains` | object | —       | Map of domain name → local port                       |
+`.env` (Pro mode):
 
-**Domain name rules:**
-- Alphanumeric characters and hyphens only
-- No dots or underscores
-- Case-insensitive (normalized to lowercase)
-- Becomes `{name}.local` on the network
+| Variable       | Required | Description                                               |
+|----------------|----------|-----------------------------------------------------------|
+| `CF_API_TOKEN` | Yes      | Cloudflare API token with Zone:DNS:Edit permission        |
+| `CF_EMAIL`     | No       | Email for Let's Encrypt expiry notifications              |
 
-**Constraints:**
-- Each domain name must be unique
-- Each target port must be unique (no two domains can proxy to the same port)
-- Port numbers must be between 1 and 65535
+**Domain name rules:** letters, numbers, and hyphens only. No dots. Normalized to lowercase.
 
 ---
 
-## CLI Usage
+## CLI options
 
 ```
 Usage: localdns [options]
 
 Options:
-  --config <path>   Path to config file (default: ./localdns.config.json)
-  --port <n>        Override proxy port from config
-  --no-ssl          Disable HTTPS, use plain HTTP only
-  --help            Show this help message
-```
-
-**Examples:**
-
-```bash
-# Use default config
-sudo localdns
-
-# Use a custom config file
-sudo localdns --config ~/projects/myapp/localdns.config.json
-
-# Override port
-sudo localdns --port 8080
-
-# HTTP only (no SSL)
-localdns --no-ssl --port 8080
+  --config <path>   Config file path (default: ./localdns.config.json)
+  --port <n>        Override proxy port
+  --no-ssl          Disable HTTPS, plain HTTP only
+  --help            Show this help
 ```
 
 ---
 
-## HTTPS & SSL Certificates
+## How it works
 
-When mkcert is installed, localDNS automatically:
+### Pro mode
 
-1. Installs a local Certificate Authority (CA) into your system trust stores
-2. Generates a certificate covering all configured `.local` domains
-3. Stores the cert/key in a `./certs/` directory
-4. Regenerates the certificate only when the domain list changes
-
-If mkcert is not found, localDNS falls back to plain HTTP with a warning.
-
-### Trusting SSL on Other Devices
-
-The local CA certificate generated by mkcert is trusted automatically on the machine running localDNS. For other devices to trust HTTPS connections, you need to install the CA certificate on each device.
-
-**Find the CA certificate:**
-
-```bash
-mkcert -CAROOT
-# Outputs a path like: /Users/you/Library/Application Support/mkcert
+```
+Other device
+  Browser → https://inventory.yourdomain.com
+      │
+      │  Public DNS (Cloudflare)
+      │  inventory.yourdomain.com → 192.168.x.x  (your LAN IP)
+      │
+      ▼
+Your machine (192.168.x.x)
+  ┌──────────────────────────────────────────────────────┐
+  │  localDNS Proxy — HTTPS :443                         │
+  │  Let's Encrypt wildcard cert for *.yourdomain.com    │
+  │                                                      │
+  │  inventory.yourdomain.com  →  localhost:3000         │
+  │  dashboard.yourdomain.com  →  localhost:6000         │
+  └──────────────────────────────────────────────────────┘
 ```
 
-The `rootCA.pem` file in that directory is the certificate to distribute.
+1. **Cloudflare DNS** — localDNS upserts A records pointing each subdomain to your current LAN IP.
+2. **Let's Encrypt cert** — obtained via DNS-01 challenge. Cloudflare sets the required TXT records via API. No public port exposure needed.
+3. **Concurrent challenges** — Let's Encrypt issues two challenges per wildcard order (`*.domain` and `domain`). Both TXT records coexist in Cloudflare until each is validated, then cleaned up individually.
+4. **Cert cache** — stored in `~/.localmap/certs/`. Reused until 30 days before expiry, then auto-renewed in the background.
+5. **Hot reload** — renewed certificates are applied with `server.setSecureContext()` — no proxy restart needed.
 
-**Install on iOS:**
-1. AirDrop or email `rootCA.pem` to the device
-2. Go to Settings → General → VPN & Device Management → install profile
-3. Go to Settings → General → About → Certificate Trust Settings → enable full trust
+### Quick mode
 
-**Install on Android:**
-1. Transfer `rootCA.pem` to the device
-2. Go to Settings → Security → Install from Storage
+```
+Other device
+  Browser → https://inventory.local
+      │
+      │  mDNS (link-local, same Wi-Fi only)
+      │  inventory.local → 192.168.x.x
+      │
+      ▼
+Your machine (192.168.x.x)
+  ┌──────────────────────────────────────────────────────┐
+  │  localDNS Proxy — HTTPS :443                         │
+  │  mkcert cert for *.local                             │
+  │                                                      │
+  │  inventory.local  →  localhost:3000                  │
+  │  dashboard.local  →  localhost:6000                  │
+  └──────────────────────────────────────────────────────┘
+```
 
-**Install on another Mac/Linux:**
+1. **mDNS** — `dns-sd` (macOS) or `avahi` (Linux) broadcasts each `.local` hostname on the LAN.
+2. **mkcert** — generates a cert trusted by this machine's keychain. Other devices need the CA cert installed once.
+
+### Both modes
+
+- Reverse proxy routes by `Host` header to the correct local port
+- WebSocket upgrades forwarded transparently (Vite HMR, Next.js Fast Refresh, etc.)
+- HTTP on port 80 redirects to HTTPS on port 443
+- Ctrl+C cleans up all mDNS registrations before exiting
+
+---
+
+## Certificate lifecycle (Pro mode)
+
+| Event | What happens |
+|---|---|
+| First run | DNS A records set, ACME challenge issued, cert obtained (~1 min) |
+| Subsequent runs | Cert loaded from `~/.localmap/certs/` — instant startup |
+| < 30 days to expiry | Background renewal triggered automatically |
+| Renewal success | New cert hot-reloaded, no restart needed |
+| Renewal failure | Exponential backoff: 6h → 12h → 24h → 48h (max 4 days) |
+| Manual reset | Delete `~/.localmap/certs/` to force a fresh certificate |
+
+---
+
+## Running the examples
+
 ```bash
-# Copy rootCA.pem to the other machine, then:
-mkcert -install   # if mkcert is installed on that machine too
-# or manually add it to system keychain / browser trust stores
+# Terminal 1
+node examples/inventory/server.js    # port 3000
+
+# Terminal 2
+node examples/dashboard/server.js    # port 6000
+
+# Terminal 3
+sudo node bin/localdns.js
 ```
 
 ---
 
-## How It Works
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│  Other Device (phone, tablet, etc.)                         │
-│  Browser → https://inventory.local                          │
-└──────────────────────────┬──────────────────────────────────┘
-                           │ mDNS resolves inventory.local
-                           │ → your machine's LAN IP
-                           ▼
-┌─────────────────────────────────────────────────────────────┐
-│  Your Machine (LAN IP: 192.168.x.x)                         │
-│                                                             │
-│  ┌─────────────────────────────────────────────────────┐   │
-│  │  localDNS Proxy (port 443 / HTTPS)                  │   │
-│  │                                                     │   │
-│  │  Host: inventory.local  →  localhost:3000           │   │
-│  │  Host: dashboard.local  →  localhost:6000           │   │
-│  └─────────────────────────────────────────────────────┘   │
-│                                                             │
-│  ┌──────────────────┐    ┌──────────────────┐              │
-│  │  Dev Server :3000│    │  Dev Server :6000│              │
-│  │  (inventory app) │    │  (dashboard app) │              │
-│  └──────────────────┘    └──────────────────┘              │
-└─────────────────────────────────────────────────────────────┘
-```
-
-1. **mDNS registration** — localDNS registers each `.local` hostname with the OS mDNS daemon (`dns-sd` on macOS, `avahi` on Linux), associating each hostname with your machine's current LAN IP.
-2. **Reverse proxy** — An HTTP/HTTPS server routes incoming requests by inspecting the `Host` header and forwarding to the matching local port.
-3. **WebSocket proxying** — WebSocket upgrade requests are forwarded transparently, so hot-module replacement and live reload work across devices.
-4. **Certificate management** — mkcert generates a single multi-domain certificate covering all configured `.local` hostnames.
-
----
-
-## Platform Details
-
-### macOS
-
-Uses the native `dns-sd` command to register mDNS services. The registration process is monitored and auto-restarted if it exits unexpectedly.
-
-### Linux
-
-Uses Avahi tools (`avahi-publish-address`, `avahi-publish-service`). Install Avahi if not present:
-
-```bash
-sudo apt install avahi-daemon avahi-utils
-```
-
----
-
-## Running the Examples
-
-The repo includes two example servers to try localDNS immediately.
-
-**1. Start both example servers:**
-
-```bash
-node examples/inventory/server.js   # port 3000
-node examples/dashboard/server.js   # port 6000
-```
-
-**2. Use the included config** (`localdns.config.json` already maps these):
-
-```json
-{
-  "port": 80,
-  "domains": {
-    "inventory": 3000,
-    "dashboard": 6000
-  }
-}
-```
-
-**3. Run localDNS:**
-
-```bash
-sudo localdns
-```
-
-**4. Open in a browser:**
-
-```
-https://inventory.local   — inventory management table
-https://dashboard.local   — admin dashboard with charts
-```
-
----
-
-## Project Structure
+## Project structure
 
 ```
 localDNS/
 ├── bin/
-│   └── localdns.js          # CLI entry point, argument parsing, startup orchestration
+│   └── localdns.js        Entry point — argument parsing, startup orchestration
 ├── src/
-│   ├── config.js            # Config file loading and validation
-│   ├── certs.js             # SSL certificate generation (mkcert integration)
-│   ├── proxy.js             # HTTP/HTTPS reverse proxy server
-│   ├── mdns.js              # mDNS registration (macOS & Linux)
-│   ├── ip.js                # LAN IP address detection
-│   └── cleanup.js           # Graceful shutdown and signal handling
+│   ├── config.js          Config loading, validation, .env parsing
+│   ├── cloudflare.js      Cloudflare API — zone lookup, A records, ACME TXT records
+│   ├── acme.js            Let's Encrypt DNS-01 flow, cert cache, renewal scheduler
+│   ├── certs.js           mkcert integration (quick mode fallback)
+│   ├── proxy.js           HTTP/HTTPS reverse proxy, WebSocket support
+│   ├── mdns.js            mDNS registration — dns-sd (macOS), avahi (Linux)
+│   ├── ip.js              LAN IP detection
+│   └── cleanup.js         Signal handling, child process cleanup
 ├── examples/
-│   ├── dashboard/           # Example dashboard app (port 6000)
-│   └── inventory/           # Example inventory app (port 3000)
-├── certs/                   # Auto-generated SSL certificates (gitignored)
-└── localdns.config.json     # Default configuration
+│   ├── inventory/         Example inventory app (port 3000)
+│   └── dashboard/         Example dashboard app (port 6000)
+├── .env.example           Environment variable template
+└── localdns.config.json   Configuration
 ```
 
 ---
 
 ## Troubleshooting
 
-**`.local` domain not resolving on another device**
+**`CF_API_TOKEN` not found**
+Add it to a `.env` file next to your config. See `.env.example` for the format.
 
-- Confirm both devices are on the same Wi-Fi network (not one on Ethernet, one on Wi-Fi)
-- Check that your firewall allows mDNS traffic (UDP port 5353) and the proxy port (443 or 80)
-- On macOS, try `dns-sd -G v4 inventory.local` to verify mDNS registration
+**Cloudflare zone not found**
+Verify the token has `Zone:DNS:Edit` permission and is scoped to the correct domain.
 
-**Certificate not trusted on another device**
+**First run shows "TXT record not confirmed in public DNS — proceeding anyway"**
+This warning is harmless. It means the DNS propagation polling timed out but Let's Encrypt validated successfully anyway. If the certificate was issued, you can ignore it.
 
-- See [Trusting SSL on Other Devices](#trusting-ssl-on-other-devices)
-- Or use `--no-ssl` for plain HTTP during quick testing
+**Certificate error on first run**
+Delete `~/.localmap/certs/` and retry. Verify `CF_API_TOKEN` has the correct permissions.
 
-**`EACCES` permission denied on port 80/443**
+**Domains not resolving on other devices**
+After a new A record, DNS can take up to 60 seconds to propagate. TTL is set to 60s so stale LAN IP records clear quickly.
 
-- Run with `sudo` — ports below 1024 require root on Unix systems
-- Alternatively, use `--port 8080` and `--no-ssl` to avoid privileged ports
+**`EACCES` on port 443 or 80**
+Run with `sudo`. Use `--port 8443` to avoid privileged ports (URLs will include the port number).
 
-**mkcert not found — falling back to HTTP**
+**Quick mode: `.local` not resolving on another device**
+Both devices must be on the same Wi-Fi (not one on Ethernet). Check your firewall allows UDP 5353. Verify on macOS with `dns-sd -G v4 inventory.local`.
 
-- Install mkcert: `brew install mkcert` (macOS) or see [mkcert releases](https://github.com/FiloSottile/mkcert/releases)
-- Or continue with HTTP using `--no-ssl`
-
-**mDNS registration fails on Linux**
-
-- Ensure Avahi is installed and running: `sudo systemctl start avahi-daemon`
+**Linux: mDNS registration fails**
+`sudo apt install avahi-daemon avahi-utils && sudo systemctl start avahi-daemon`
 
 ---
 

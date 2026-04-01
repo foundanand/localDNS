@@ -5,14 +5,33 @@ const path = require('path');
 
 const DOMAIN_RE = /^[a-z0-9][a-z0-9-]*$/i;
 
+// Load .env from the same directory as the config file (or cwd).
+// Only sets variables not already present in the environment.
+function loadEnv(dir) {
+  const envPath = path.join(dir, '.env');
+  if (!fs.existsSync(envPath)) return;
+  for (const line of fs.readFileSync(envPath, 'utf8').split('\n')) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+    const eq = trimmed.indexOf('=');
+    if (eq < 0) continue;
+    const key = trimmed.slice(0, eq).trim();
+    const val = trimmed.slice(eq + 1).trim().replace(/^["']|["']$/g, '');
+    if (key && !(key in process.env)) process.env[key] = val;
+  }
+}
+
 function loadConfig(configPath) {
   const resolved = path.resolve(configPath);
 
   if (!fs.existsSync(resolved)) {
     console.error(`Config file not found: ${resolved}`);
-    console.error('Create a localdns.config.json with:\n  { "port": 80, "domains": { "myapp": 3000 } }');
+    console.error('Create a localdns.config.json with:\n  { "domains": { "myapp": 3000 } }');
     process.exit(1);
   }
+
+  // Load .env from the config file's directory before reading env vars
+  loadEnv(path.dirname(resolved));
 
   let raw;
   try {
@@ -64,7 +83,31 @@ function loadConfig(configPath) {
     process.exit(1);
   }
 
-  return { port, domains };
+  // --- Optional: Cloudflare + Let's Encrypt mode ---
+  let baseDomain = null;
+  let cloudflare = null;
+
+  if (raw.baseDomain) {
+    if (typeof raw.baseDomain !== 'string' || raw.baseDomain.split('.').length < 2) {
+      console.error('"baseDomain" must be a string like "local.myteam.dev"');
+      process.exit(1);
+    }
+
+    const apiToken = process.env.CF_API_TOKEN;
+    if (!apiToken) {
+      console.error('CF_API_TOKEN is required when using baseDomain.');
+      console.error('Add it to your .env file:\n  CF_API_TOKEN=your_token_here');
+      process.exit(1);
+    }
+
+    baseDomain = raw.baseDomain.toLowerCase();
+    cloudflare = {
+      apiToken,
+      email: process.env.CF_EMAIL || null,
+    };
+  }
+
+  return { port, domains, baseDomain, cloudflare };
 }
 
 module.exports = { loadConfig };

@@ -1,5 +1,5 @@
 {
-  "port": 80,
+  "baseDomain": "yourdomain.com",
   "domains": {
     "inventory": 3000,
     "dashboard": 6000
