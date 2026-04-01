@@ -1,4 +1,4 @@
-# localDNS
+# dynamoip
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Node.js](https://img.shields.io/badge/node-%3E%3D14-brightgreen)](https://nodejs.org)
@@ -19,7 +19,7 @@ No "connection not secure" warnings. No cert installation on other devices. Work
 
 ### Pro mode — Cloudflare + Let's Encrypt (recommended)
 
-Uses a real domain you own. localDNS sets the DNS A records in Cloudflare and obtains a Let's Encrypt certificate automatically. Every device on the network trusts it out of the box — no setup on other devices at all.
+Uses a real domain you own. dynamoip sets the DNS A records in Cloudflare and obtains a Let's Encrypt certificate automatically. Every device on the network trusts it out of the box — no setup on other devices at all.
 
 **What you need:** a domain managed by Cloudflare, a Cloudflare API token.
 
@@ -34,7 +34,7 @@ No domain needed. Uses mDNS to broadcast `.local` hostnames on the LAN. Other de
 ## Requirements
 
 - **Node.js** >= 14
-- **macOS** or **Linux** — Windows is not currently supported ([upvote or track here](https://github.com/foundanand/localDNS/issues))
+- **macOS** or **Linux** — Windows is not currently supported ([upvote or track here](https://github.com/foundanand/dynamoip/issues))
 - **sudo** — required to bind to ports 80 and 443 (privileged ports). Use `--port 8443` to avoid this.
 
 **Pro mode additionally:**
@@ -51,14 +51,14 @@ No domain needed. Uses mDNS to broadcast `.local` hostnames on the LAN. Other de
 ### Recommended — global install via npm
 
 ```bash
-npm install -g localdns
+npm install -g dynamoip
 ```
 
 ### From source
 
 ```bash
-git clone https://github.com/foundanand/localDNS.git
-cd localDNS
+git clone https://github.com/foundanand/dynamoip.git
+cd dynamoip
 npm install
 npm install -g .
 ```
@@ -66,17 +66,17 @@ npm install -g .
 ### Without installing globally
 
 ```bash
-git clone https://github.com/foundanand/localDNS.git
-cd localDNS
+git clone https://github.com/foundanand/dynamoip.git
+cd dynamoip
 npm install
-node bin/localdns.js
+node bin/dynamoip.js
 ```
 
 ---
 
 ## Pro mode setup
 
-**1. Create `localdns.config.json`** in your project directory:
+**1. Create `dynamoip.config.json`** in your project directory:
 
 ```json
 {
@@ -88,7 +88,7 @@ node bin/localdns.js
 }
 ```
 
-`baseDomain` can be your apex domain (`yourdomain.com`) or any subdomain (`dev.yourdomain.com`). localDNS will create `inventory.yourdomain.com`, `dashboard.yourdomain.com`, etc.
+`baseDomain` can be your apex domain (`yourdomain.com`) or any subdomain (`dev.yourdomain.com`). dynamoip will create `inventory.yourdomain.com`, `dashboard.yourdomain.com`, etc.
 
 **2. Create `.env`** in the same directory (never commit this):
 
@@ -102,18 +102,18 @@ Get a token at **Cloudflare Dashboard → My Profile → API Tokens → Create T
 **3. Run:**
 
 ```bash
-sudo localdns
+sudo dynamoip
 ```
 
 **What happens on first run** (~1 minute):
 1. DNS A records are set in Cloudflare pointing to your LAN IP
-2. A DNS-01 ACME challenge is issued — localDNS sets a TXT record in Cloudflare and waits for it to propagate through public resolvers
+2. A DNS-01 ACME challenge is issued — dynamoip sets a TXT record in Cloudflare and waits for it to propagate through public resolvers
 3. Let's Encrypt validates the challenge and issues a wildcard certificate
 4. The proxy starts and your domains are live
 
 You will see output like:
 ```
-localDNS starting...
+dynamoip starting...
 LAN IP : 192.168.1.42
 Mode   : Cloudflare + Let's Encrypt (yourdomain.com)
 
@@ -152,7 +152,7 @@ No certificate prompts. No setup on other devices.
 
 ## Quick mode setup
 
-**1. Create `localdns.config.json`** — no `baseDomain` field:
+**1. Create `dynamoip.config.json`** — no `baseDomain` field:
 
 ```json
 {
@@ -166,7 +166,7 @@ No certificate prompts. No setup on other devices.
 **2. Run:**
 
 ```bash
-sudo localdns
+sudo dynamoip
 ```
 
 mkcert installs a local CA on first run (may prompt for your password), then generates a certificate covering all configured `.local` domains.
@@ -182,7 +182,7 @@ https://dashboard.local
 
 ---
 
-## Using localDNS in a Next.js (or any Node) project
+## Using dynamoip in a Next.js (or any Node) project
 
 See [docs/local-development.md](docs/local-development.md) for the full guide. The short version:
 
@@ -190,19 +190,19 @@ See [docs/local-development.md](docs/local-development.md) for the full guide. T
 
 ```bash
 # Once npm package is published:
-npm install --save-dev localdns
+npm install --save-dev dynamoip
 
 # Until then, symlink directly:
-ln -s /path/to/localDNS node_modules/localdns
+ln -s /path/to/dynamoip node_modules/dynamoip
 ```
 
-**2. Add `localdns.config.json`** to your project root (see example in [`localdns.config.example.json`](localdns.config.example.json)).
+**2. Add `dynamoip.config.json`** to your project root (see example in [`dynamoip.config.example.json`](dynamoip.config.example.json)).
 
 **3. Add a script to `package.json`:**
 
 ```json
 "scripts": {
-  "dev:proxy": "sudo localdns --config localdns.config.json"
+  "dev:proxy": "sudo dynamoip --config dynamoip.config.json"
 }
 ```
 
@@ -210,14 +210,14 @@ ln -s /path/to/localDNS node_modules/localdns
 
 ```bash
 npm run dev          # your app
-sudo npm run dev:proxy   # localDNS proxy
+sudo npm run dev:proxy   # dynamoip proxy
 ```
 
 ---
 
 ## Configuration reference
 
-`localdns.config.json`:
+`dynamoip.config.json`:
 
 | Field        | Type   | Required          | Description                                                     |
 |--------------|--------|-------------------|-----------------------------------------------------------------|
@@ -239,10 +239,10 @@ sudo npm run dev:proxy   # localDNS proxy
 ## CLI options
 
 ```
-Usage: localdns [options]
+Usage: dynamoip [options]
 
 Options:
-  --config <path>   Config file path (default: ./localdns.config.json)
+  --config <path>   Config file path (default: ./dynamoip.config.json)
   --port <n>        Override proxy port
   --no-ssl          Disable HTTPS, plain HTTP only
   --help            Show this help
@@ -264,7 +264,7 @@ Other device
       ▼
 Your machine (192.168.x.x)
   ┌──────────────────────────────────────────────────────┐
-  │  localDNS Proxy — HTTPS :443                         │
+  │  dynamoip Proxy — HTTPS :443                         │
   │  Let's Encrypt wildcard cert for *.yourdomain.com    │
   │                                                      │
   │  inventory.yourdomain.com  →  localhost:3000         │
@@ -272,7 +272,7 @@ Your machine (192.168.x.x)
   └──────────────────────────────────────────────────────┘
 ```
 
-1. **Cloudflare DNS** — localDNS upserts A records pointing each subdomain to your current LAN IP.
+1. **Cloudflare DNS** — dynamoip upserts A records pointing each subdomain to your current LAN IP.
 2. **Let's Encrypt cert** — obtained via DNS-01 challenge. Cloudflare sets the required TXT records via API. No public port exposure needed.
 3. **Concurrent challenges** — Let's Encrypt issues two challenges per wildcard order (`*.domain` and `domain`). Both TXT records coexist in Cloudflare until each is validated, then cleaned up individually.
 4. **Cert cache** — stored in `~/.localmap/certs/`. Reused until 30 days before expiry, then auto-renewed in the background.
@@ -290,7 +290,7 @@ Other device
       ▼
 Your machine (192.168.x.x)
   ┌──────────────────────────────────────────────────────┐
-  │  localDNS Proxy — HTTPS :443                         │
+  │  dynamoip Proxy — HTTPS :443                         │
   │  mkcert cert for *.local                             │
   │                                                      │
   │  inventory.local  →  localhost:3000                  │
@@ -333,7 +333,7 @@ node examples/inventory/server.js    # port 3000
 node examples/dashboard/server.js    # port 6000
 
 # Terminal 3
-sudo localdns
+sudo dynamoip
 ```
 
 ---
@@ -341,9 +341,9 @@ sudo localdns
 ## Project structure
 
 ```
-localDNS/
+dynamoip/
 ├── bin/
-│   └── localdns.js        Entry point — argument parsing, startup orchestration
+│   └── dynamoip.js        Entry point — argument parsing, startup orchestration
 ├── src/
 │   ├── config.js          Config loading, validation, .env parsing
 │   ├── cloudflare.js      Cloudflare API — zone lookup, A records, ACME TXT records
@@ -354,11 +354,11 @@ localDNS/
 │   ├── ip.js              LAN IP detection
 │   └── cleanup.js         Signal handling, child process cleanup
 ├── docs/
-│   └── local-development.md   Using localDNS in your own projects
+│   └── local-development.md   Using dynamoip in your own projects
 ├── examples/
 │   ├── inventory/         Example inventory app (port 3000)
 │   └── dashboard/         Example dashboard app (port 6000)
-├── localdns.config.example.json   Config template
+├── dynamoip.config.example.json   Config template
 └── .env.example                   Environment variable template
 ```
 
@@ -396,8 +396,8 @@ Both devices must be on the same Wi-Fi (not one on Ethernet). Check your firewal
 
 Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
-Found a bug? [Open an issue](https://github.com/foundanand/localDNS/issues).
-Have a question? [Start a discussion](https://github.com/foundanand/localDNS/discussions).
+Found a bug? [Open an issue](https://github.com/foundanand/dynamoip/issues).
+Have a question? [Start a discussion](https://github.com/foundanand/dynamoip/discussions).
 
 ---
 

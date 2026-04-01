@@ -1,13 +1,13 @@
 {
-  "name": "localdns",
+  "name": "dynamoip",
   "version": "1.0.0",
   "description": "Expose local dev servers as .local mDNS domains on your Wi-Fi",
-  "main": "bin/localdns.js",
+  "main": "bin/dynamoip.js",
   "bin": {
-    "localdns": "bin/localdns.js"
+    "dynamoip": "bin/dynamoip.js"
   },
   "scripts": {
-    "start": "node bin/localdns.js"
+    "start": "node bin/dynamoip.js"
   },
   "dependencies": {
     "acme-client": "^5.4.0",

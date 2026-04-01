@@ -13,5 +13,5 @@ http.createServer((req, res) => {
   res.end(HTML);
 }).listen(PORT, () => {
   console.log(`Inventory running on http://localhost:${PORT}`);
-  console.log(`Via localDNS: http://inventory.local`);
+  console.log(`Via dynamoip: http://inventory.local`);
 });

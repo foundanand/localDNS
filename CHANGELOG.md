@@ -1,9 +1,9 @@
 # Changelog
 
-All notable changes to localDNS are documented here.
+All notable changes to dynamoip are documented here.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
-localDNS uses [semantic versioning](https://semver.org/).
+dynamoip uses [semantic versioning](https://semver.org/).
 
 ---
 

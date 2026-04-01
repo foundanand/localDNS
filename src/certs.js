@@ -63,8 +63,8 @@ function generateCerts(domains, certsDir) {
     fs.mkdirSync(certsDir, { recursive: true });
   }
 
-  const certFile  = path.join(certsDir, 'localdns.pem');
-  const keyFile   = path.join(certsDir, 'localdns-key.pem');
+  const certFile  = path.join(certsDir, 'dynamoip.pem');
+  const keyFile   = path.join(certsDir, 'dynamoip-key.pem');
   const stampFile = path.join(certsDir, '.domains');
 
   const currentStamp  = domains.map(d => `${d.name}.local`).sort().join(',');

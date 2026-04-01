@@ -29,7 +29,7 @@ function loadConfig(configPath) {
 
   if (!fs.existsSync(resolved)) {
     console.error(`Config file not found: ${resolved}`);
-    console.error('Create a localdns.config.json with:\n  { "domains": { "myapp": 3000 } }');
+    console.error('Create a dynamoip.config.json with:\n  { "domains": { "myapp": 3000 } }');
     process.exit(1);
   }
 

@@ -149,11 +149,11 @@ function scheduleRenewal(baseDomain, cloudflareToken, email, httpsServer) {
     // Backoff: if we've failed before, wait before retrying
     if (nextRetryAfter && Date.now() < nextRetryAfter) {
       const hoursLeft = Math.ceil((nextRetryAfter - Date.now()) / (1000 * 60 * 60));
-      console.log(`[localdns] Cert renewal backoff active — retrying in ~${hoursLeft}h`);
+      console.log(`[dynamoip] Cert renewal backoff active — retrying in ~${hoursLeft}h`);
       return;
     }
 
-    console.log('\n[localdns] Certificate renewal starting...');
+    console.log('\n[dynamoip] Certificate renewal starting...');
     try {
       await obtainCert(baseDomain, cloudflareToken, email);
       failedAttempts = 0;
@@ -163,7 +163,7 @@ function scheduleRenewal(baseDomain, cloudflareToken, email, httpsServer) {
           cert: fs.readFileSync(CERT_FILE),
           key:  fs.readFileSync(KEY_FILE),
         });
-        console.log('[localdns] Certificate renewed and hot-reloaded — no restart needed');
+        console.log('[dynamoip] Certificate renewed and hot-reloaded — no restart needed');
       }
     } catch (e) {
       failedAttempts++;
@@ -171,8 +171,8 @@ function scheduleRenewal(baseDomain, cloudflareToken, email, httpsServer) {
       const backoffHours = Math.min(6 * Math.pow(2, failedAttempts - 1), MAX_BACKOFF_DAYS * 24);
       nextRetryAfter = Date.now() + backoffHours * 60 * 60 * 1000;
       const retryDate = new Date(nextRetryAfter).toISOString().replace('T', ' ').slice(0, 16);
-      console.error(`[localdns] Certificate renewal failed (attempt ${failedAttempts}): ${e.message}`);
-      console.error(`[localdns] Next retry after ${retryDate} UTC. Existing cert is still being served.`);
+      console.error(`[dynamoip] Certificate renewal failed (attempt ${failedAttempts}): ${e.message}`);
+      console.error(`[dynamoip] Next retry after ${retryDate} UTC. Existing cert is still being served.`);
     }
   }, CHECK_INTERVAL).unref();
 }

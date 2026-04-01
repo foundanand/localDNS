@@ -1,4 +1,4 @@
-# Contributing to localDNS
+# Contributing to dynamoip
 
 Thanks for taking the time to contribute. This document explains how to report bugs, suggest features, and submit code changes.
 
@@ -6,13 +6,13 @@ Thanks for taking the time to contribute. This document explains how to report b
 
 ## Reporting bugs
 
-[Open an issue](https://github.com/foundanand/localDNS/issues) and include:
+[Open an issue](https://github.com/foundanand/dynamoip/issues) and include:
 
 - Your OS and version (e.g. macOS 14.4, Ubuntu 22.04)
 - Node.js version (`node --version`)
 - Which mode you are using (Pro / Quick)
 - The full terminal output, including any error messages
-- Your `localdns.config.json` (redact any real domain names if you prefer)
+- Your `dynamoip.config.json` (redact any real domain names if you prefer)
 
 Do **not** include your `CF_API_TOKEN` or any credentials in the issue.
 
@@ -20,10 +20,10 @@ Do **not** include your `CF_API_TOKEN` or any credentials in the issue.
 
 ## Suggesting features
 
-[Open an issue](https://github.com/foundanand/localDNS/issues) with the label `enhancement`. Describe:
+[Open an issue](https://github.com/foundanand/dynamoip/issues) with the label `enhancement`. Describe:
 
 - What problem you are trying to solve
-- What you expected localDNS to do
+- What you expected dynamoip to do
 - Any alternatives you considered
 
 ---
@@ -50,7 +50,7 @@ Do **not** include your `CF_API_TOKEN` or any credentials in the issue.
    # Run the examples
    node examples/inventory/server.js &
    node examples/dashboard/server.js &
-   sudo node bin/localdns.js
+   sudo node bin/dynamoip.js
    ```
 
    For Pro mode changes, test with a real Cloudflare domain. For Quick mode changes, test with mkcert installed.
@@ -76,7 +76,7 @@ Do **not** include your `CF_API_TOKEN` or any credentials in the issue.
 ## Project layout
 
 ```
-bin/localdns.js     Entry point and startup orchestration
+bin/dynamoip.js     Entry point and startup orchestration
 src/config.js       Config + .env loading
 src/cloudflare.js   Cloudflare API client
 src/acme.js         Let's Encrypt DNS-01 cert issuance and renewal
@@ -87,7 +87,7 @@ src/ip.js           LAN IP detection
 src/cleanup.js      Signal handling and child process cleanup
 ```
 
-The startup flow in `bin/localdns.js` is the best place to start understanding how the pieces connect.
+The startup flow in `bin/dynamoip.js` is the best place to start understanding how the pieces connect.
 
 ---
 

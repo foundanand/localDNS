@@ -16,7 +16,7 @@ function buildCertPage(certUrl, domains, proxyPort) {
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
-  <title>localDNS — Trust Setup</title>
+  <title>dynamoip — Trust Setup</title>
   <style>
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
            max-width: 520px; margin: 3rem auto; padding: 0 1.5rem; color: #1a1a1a; }
@@ -33,10 +33,10 @@ function buildCertPage(certUrl, domains, proxyPort) {
   </style>
 </head>
 <body>
-  <h1>localDNS — Trust Setup</h1>
+  <h1>dynamoip — Trust Setup</h1>
   <p>Install the CA certificate on this device to access .local domains over HTTPS without warnings.</p>
 
-  <a class="btn" href="/localdns-ca.crt">Download CA Certificate</a>
+  <a class="btn" href="/dynamoip-ca.crt">Download CA Certificate</a>
 
   <details open>
     <summary>iOS / iPadOS</summary>
@@ -45,7 +45,7 @@ function buildCertPage(certUrl, domains, proxyPort) {
       <li>Go to <strong>Settings → General → VPN &amp; Device Management</strong></li>
       <li>Tap the downloaded profile → <strong>Install</strong></li>
       <li>Go to <strong>Settings → General → About → Certificate Trust Settings</strong></li>
-      <li>Enable full trust for <em>localDNS</em></li>
+      <li>Enable full trust for <em>dynamoip</em></li>
     </ol>
   </details>
 

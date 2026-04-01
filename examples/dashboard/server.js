@@ -13,5 +13,5 @@ http.createServer((req, res) => {
   res.end(HTML);
 }).listen(PORT, () => {
   console.log(`Dashboard running on http://localhost:${PORT}`);
-  console.log(`Via localDNS: http://dashboard.local`);
+  console.log(`Via dynamoip: http://dashboard.local`);
 });

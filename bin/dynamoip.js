@@ -16,13 +16,13 @@ const noSsl = args.includes('--no-ssl');
 
 if (args.includes('--help') || args.includes('-h')) {
   console.log(`
-localdns - Expose local dev servers as real domains with trusted HTTPS
+dynamoip - Expose local dev servers as real domains with trusted HTTPS
 
 Usage:
-  localdns [options]
+  dynamoip [options]
 
 Options:
-  --config <path>   Path to config file (default: ./localdns.config.json)
+  --config <path>   Path to config file (default: ./dynamoip.config.json)
   --port <n>        Override proxy port (default: 443 with SSL, 80 without)
   --no-ssl          Disable HTTPS (plain HTTP, mDNS .local only)
   --help            Show this help
@@ -30,7 +30,7 @@ Options:
 --- Pro mode (Cloudflare + Let's Encrypt) ---
   Trusted HTTPS on every device. No cert installation needed.
 
-  localdns.config.json:
+  dynamoip.config.json:
     { "baseDomain": "local.myteam.dev", "domains": { "inventory": 3000 } }
 
   .env:
@@ -40,13 +40,13 @@ Options:
 --- Quick mode (mDNS .local) ---
   Works on LAN only. Other devices need to install the CA cert once.
 
-  localdns.config.json:
+  dynamoip.config.json:
     { "domains": { "inventory": 3000 } }
 `);
   process.exit(0);
 }
 
-let configPath  = './localdns.config.json';
+let configPath  = './dynamoip.config.json';
 let portOverride = null;
 
 for (let i = 0; i < args.length; i++) {
@@ -74,7 +74,7 @@ async function main() {
   const proto = (useAcme || useMkcert) ? 'https' : 'http';
   const domainSuffix = useAcme ? `.${config.baseDomain}` : '.local';
 
-  console.log(`\nlocalDNS starting...`);
+  console.log(`\ndynamoip starting...`);
   console.log(`LAN IP : ${lanIp}`);
   console.log(`Mode   : ${useAcme ? `Cloudflare + Let's Encrypt (${config.baseDomain})` : useMkcert ? 'mkcert (local CA)' : 'HTTP'}`);
   console.log('');
