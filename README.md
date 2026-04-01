@@ -1,17 +1,62 @@
 # dynamoip
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![npm](https://img.shields.io/npm/v/dynamoip)](https://www.npmjs.com/package/dynamoip)
 [![Node.js](https://img.shields.io/badge/node-%3E%3D14-brightgreen)](https://nodejs.org)
 [![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux-lightgrey)](#requirements)
 
-Expose local dev servers as real domains with trusted HTTPS — accessible from any device on your network without touching certificate settings.
+**Give your local services real domain names and trusted HTTPS — reachable from any device on your network.**
 
 ```
-https://inventory.yourdomain.com  →  localhost:3000
-https://dashboard.yourdomain.com  →  localhost:6000
+https://app.yourdomain.com      →  localhost:3000
+https://api.yourdomain.com      →  localhost:4000
+https://admin.yourdomain.com    →  localhost:5000
 ```
 
 No "connection not secure" warnings. No cert installation on other devices. Works on every phone, tablet, and computer on your Wi-Fi.
+
+---
+
+## Who is this for?
+
+### Developers
+
+You're building a web app and need to test on a real phone — camera APIs, push notifications, touch targets, PWA install. `localhost` doesn't reach your phone. ngrok works but resets your URL on every restart and throttles requests.
+
+dynamoip gives your dev server a stable domain your phone can always reach, with a real trusted certificate — no browser warnings, no tunnels, no accounts.
+
+```
+https://myapp.yourdomain.com  →  your dev server (port 3000)
+```
+
+WebSocket upgrades work too, so Vite HMR and Next.js Fast Refresh keep working on your phone just like they do on your laptop.
+
+### Small teams and startups
+
+Your team works in the same office. You're building a product with a frontend, an API, and an admin panel — all running on your laptop. You want your designer to open the real app on their machine, your PM to test on their phone, and your backend engineer to call the API directly. Nobody wants to deal with IP addresses, port numbers, or expired ngrok URLs.
+
+dynamoip gives every service a real domain with trusted HTTPS, reachable by the whole team on the same Wi-Fi — instantly, every time you start it.
+
+```
+https://app.yourdomain.com      →  React frontend    (port 3000)
+https://api.yourdomain.com      →  Node API          (port 4000)
+https://admin.yourdomain.com    →  Admin panel       (port 5000)
+```
+
+No IT setup. No VPN. No tunnels. Just Wi-Fi.
+
+### Home automation and self-hosted services
+
+You run Home Assistant, Grafana, Plex, or a custom dashboard on a Raspberry Pi or home server. Right now you access it by remembering `192.168.1.42:8123`. You want `https://home.yourdomain.com` — something you can bookmark, share with your family, and open from any device without a security warning.
+
+dynamoip registers DNS in Cloudflare and issues a Let's Encrypt certificate automatically. Every device on your home network — phones, tablets, smart TVs — gets a real URL with full HTTPS, without installing anything on those devices.
+
+```
+https://home.yourdomain.com     →  Home Assistant    (port 8123)
+https://media.yourdomain.com    →  Plex / Jellyfin   (port 8096)
+https://stats.yourdomain.com    →  Grafana           (port 3000)
+https://files.yourdomain.com    →  Nextcloud         (port 8080)
+```
 
 ---
 
@@ -19,9 +64,9 @@ No "connection not secure" warnings. No cert installation on other devices. Work
 
 ### Pro mode — Cloudflare + Let's Encrypt (recommended)
 
-Uses a real domain you own. dynamoip sets the DNS A records in Cloudflare and obtains a Let's Encrypt certificate automatically. Every device on the network trusts it out of the box — no setup on other devices at all.
+Uses a real domain you own. dynamoip sets DNS A records in Cloudflare and obtains a Let's Encrypt wildcard certificate automatically. Every device on the network trusts it out of the box — no setup on other devices at all.
 
-**What you need:** a domain managed by Cloudflare, a Cloudflare API token.
+**What you need:** a domain managed by Cloudflare (free tier works), a Cloudflare API token.
 
 ### Quick mode — mDNS `.local`
 
@@ -48,22 +93,11 @@ No domain needed. Uses mDNS to broadcast `.local` hostnames on the LAN. Other de
 
 ## Installation
 
-### Recommended — global install via npm
-
 ```bash
 npm install -g dynamoip
 ```
 
-### From source
-
-```bash
-git clone https://github.com/foundanand/dynamoip.git
-cd dynamoip
-npm install
-npm install -g .
-```
-
-### Without installing globally
+Or run without installing globally:
 
 ```bash
 git clone https://github.com/foundanand/dynamoip.git
@@ -82,13 +116,13 @@ node bin/dynamoip.js
 {
   "baseDomain": "yourdomain.com",
   "domains": {
-    "inventory": 3000,
-    "dashboard": 6000
+    "app": 3000,
+    "api": 4000
   }
 }
 ```
 
-`baseDomain` can be your apex domain (`yourdomain.com`) or any subdomain (`dev.yourdomain.com`). dynamoip will create `inventory.yourdomain.com`, `dashboard.yourdomain.com`, etc.
+`baseDomain` can be your apex domain (`yourdomain.com`) or any subdomain (`dev.yourdomain.com`). dynamoip will create `app.yourdomain.com`, `api.yourdomain.com`, etc.
 
 **2. Create `.env`** in the same directory (never commit this):
 
@@ -107,19 +141,18 @@ sudo dynamoip
 
 **What happens on first run** (~1 minute):
 1. DNS A records are set in Cloudflare pointing to your LAN IP
-2. A DNS-01 ACME challenge is issued — dynamoip sets a TXT record in Cloudflare and waits for it to propagate through public resolvers
+2. A DNS-01 ACME challenge is issued — dynamoip sets a TXT record in Cloudflare and waits for propagation
 3. Let's Encrypt validates the challenge and issues a wildcard certificate
 4. The proxy starts and your domains are live
 
-You will see output like:
 ```
 dynamoip starting...
 LAN IP : 192.168.1.42
 Mode   : Cloudflare + Let's Encrypt (yourdomain.com)
 
 DNS records (Cloudflare):
-  inventory.yourdomain.com -> 192.168.1.42  (created)
-  dashboard.yourdomain.com -> 192.168.1.42  (created)
+  app.yourdomain.com -> 192.168.1.42  (created)
+  api.yourdomain.com -> 192.168.1.42  (created)
 
 Certificates (Let's Encrypt):
   Obtaining Let's Encrypt certificate via DNS-01...
@@ -133,20 +166,13 @@ Starting proxy:
   HTTP  :80   -> redirects to HTTPS
 
 Ready:
-  https://inventory.yourdomain.com
-  https://dashboard.yourdomain.com
+  https://app.yourdomain.com
+  https://api.yourdomain.com
 ```
 
 After the first run, the certificate is cached in `~/.localmap/certs/` and startup is instant.
 
-**4. Open on any device on the same Wi-Fi:**
-
-```
-https://inventory.yourdomain.com
-https://dashboard.yourdomain.com
-```
-
-No certificate prompts. No setup on other devices.
+**4. Open on any device on the same Wi-Fi** — no prompts, no setup required.
 
 ---
 
@@ -157,8 +183,8 @@ No certificate prompts. No setup on other devices.
 ```json
 {
   "domains": {
-    "inventory": 3000,
-    "dashboard": 6000
+    "app": 3000,
+    "api": 4000
   }
 }
 ```
@@ -174,43 +200,40 @@ mkcert installs a local CA on first run (may prompt for your password), then gen
 **3. Access from this machine:**
 
 ```
-https://inventory.local
-https://dashboard.local
+https://app.local
+https://api.local
 ```
 
 **Trusting HTTPS on other devices** requires installing the CA certificate once per device. The startup output prints the CA cert path and per-platform instructions.
 
 ---
 
-## Using dynamoip in a Next.js (or any Node) project
+## Using dynamoip in a Node.js project
 
 See [docs/local-development.md](docs/local-development.md) for the full guide. The short version:
 
 **1. Install as a dev dependency:**
 
 ```bash
-# Once npm package is published:
 npm install --save-dev dynamoip
-
-# Until then, symlink directly:
-ln -s /path/to/dynamoip node_modules/dynamoip
 ```
 
-**2. Add `dynamoip.config.json`** to your project root (see example in [`dynamoip.config.example.json`](dynamoip.config.example.json)).
+**2. Add `dynamoip.config.json`** to your project root (see [`dynamoip.config.example.json`](dynamoip.config.example.json) for the format).
 
-**3. Add a script to `package.json`:**
+**3. Add scripts to `package.json`:**
 
 ```json
 "scripts": {
-  "dev:proxy": "sudo dynamoip --config dynamoip.config.json"
+  "dev": "next dev",
+  "dev:proxy": "sudo dynamoip --config dynamoip.config.json",
+  "dev:full": "concurrently \"npm run dev\" \"sudo npm run dev:proxy\""
 }
 ```
 
-**4. Run alongside your dev server:**
+**4. Run:**
 
 ```bash
-npm run dev          # your app
-sudo npm run dev:proxy   # dynamoip proxy
+npm run dev:full
 ```
 
 ---
@@ -256,10 +279,10 @@ Options:
 
 ```
 Other device
-  Browser → https://inventory.yourdomain.com
+  Browser → https://app.yourdomain.com
       │
       │  Public DNS (Cloudflare)
-      │  inventory.yourdomain.com → 192.168.x.x  (your LAN IP)
+      │  app.yourdomain.com → 192.168.x.x  (your LAN IP)
       │
       ▼
 Your machine (192.168.x.x)
@@ -267,25 +290,24 @@ Your machine (192.168.x.x)
   │  dynamoip Proxy — HTTPS :443                         │
   │  Let's Encrypt wildcard cert for *.yourdomain.com    │
   │                                                      │
-  │  inventory.yourdomain.com  →  localhost:3000         │
-  │  dashboard.yourdomain.com  →  localhost:6000         │
+  │  app.yourdomain.com  →  localhost:3000               │
+  │  api.yourdomain.com  →  localhost:4000               │
   └──────────────────────────────────────────────────────┘
 ```
 
 1. **Cloudflare DNS** — dynamoip upserts A records pointing each subdomain to your current LAN IP.
 2. **Let's Encrypt cert** — obtained via DNS-01 challenge. Cloudflare sets the required TXT records via API. No public port exposure needed.
-3. **Concurrent challenges** — Let's Encrypt issues two challenges per wildcard order (`*.domain` and `domain`). Both TXT records coexist in Cloudflare until each is validated, then cleaned up individually.
-4. **Cert cache** — stored in `~/.localmap/certs/`. Reused until 30 days before expiry, then auto-renewed in the background.
-5. **Hot reload** — renewed certificates are applied with `server.setSecureContext()` — no proxy restart needed.
+3. **Cert cache** — stored in `~/.localmap/certs/`. Reused until 30 days before expiry, then auto-renewed in the background.
+4. **Hot reload** — renewed certificates are applied with `server.setSecureContext()` — no restart needed.
 
 ### Quick mode
 
 ```
 Other device
-  Browser → https://inventory.local
+  Browser → https://app.local
       │
       │  mDNS (link-local, same Wi-Fi only)
-      │  inventory.local → 192.168.x.x
+      │  app.local → 192.168.x.x
       │
       ▼
 Your machine (192.168.x.x)
@@ -293,8 +315,8 @@ Your machine (192.168.x.x)
   │  dynamoip Proxy — HTTPS :443                         │
   │  mkcert cert for *.local                             │
   │                                                      │
-  │  inventory.local  →  localhost:3000                  │
-  │  dashboard.local  →  localhost:6000                  │
+  │  app.local  →  localhost:3000                        │
+  │  api.local  →  localhost:4000                        │
   └──────────────────────────────────────────────────────┘
 ```
 
@@ -385,7 +407,7 @@ After a new A record, DNS can take up to 60 seconds to propagate. TTL is set to 
 Run with `sudo`. This is required to bind to privileged ports (< 1024). Use `--port 8443` to avoid sudo — your URLs will include the port number.
 
 **Quick mode: `.local` not resolving on another device**
-Both devices must be on the same Wi-Fi (not one on Ethernet). Check your firewall allows UDP 5353. Verify on macOS with `dns-sd -G v4 inventory.local`.
+Both devices must be on the same Wi-Fi (not one on Ethernet). Check your firewall allows UDP 5353. Verify on macOS with `dns-sd -G v4 app.local`.
 
 **Linux: mDNS registration fails**
 `sudo apt install avahi-daemon avahi-utils && sudo systemctl start avahi-daemon`
