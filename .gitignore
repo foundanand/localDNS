@@ -13,3 +13,5 @@ certs/
 
 # Dependency directory
 node_modules/
+
+dynamoip.config.json

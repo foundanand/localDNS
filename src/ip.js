@@ -3,6 +3,7 @@
 const os = require('os');
 
 function getLanIp() {
+  if (process.env.LAN_IP) return process.env.LAN_IP;
   const nets = os.networkInterfaces();
   for (const name of Object.keys(nets)) {
     for (const net of nets[name]) {

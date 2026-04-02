@@ -1,7 +1,7 @@
 {
   "name": "dynamoip",
   "version": "1.0.3",
-  "description": "Expose local dev servers as .local mDNS domains on your Wi-Fi",
+  "description": "Give your local services real domain names and trusted HTTPS — reachable from any device on your network",
   "main": "bin/dynamoip.js",
   "bin": {
     "dynamoip": "bin/dynamoip.js"

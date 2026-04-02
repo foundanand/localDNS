@@ -1,0 +1,109 @@
+# dynamoip
+
+> Give local dev servers real domain names and trusted HTTPS — reachable from any device on your network.
+
+dynamoip is a reverse proxy and DNS automation tool for local development and self-hosted services. It runs on your machine, registers DNS records pointing to your LAN IP, obtains or generates TLS certificates, and proxies HTTPS traffic to your local services by hostname.
+
+## Two modes
+
+**Pro mode** — uses a real domain you own, managed by Cloudflare. dynamoip sets A records in Cloudflare and obtains a Let's Encrypt wildcard certificate via DNS-01. Every device on the LAN trusts HTTPS out of the box.
+
+**Quick mode** — no domain needed. Uses mDNS (`.local` hostnames) and mkcert. Other devices need the CA cert installed once.
+
+## Installation
+
+```bash
+npm install --save-dev dynamoip   # recommended: dev dependency
+npm install -g dynamoip           # or global
+```
+
+Requires Node.js >= 14. Runs on macOS, Linux, and Windows (Windows via Docker only).
+
+## Config file: dynamoip.config.json
+
+```json
+{
+  "baseDomain": "yourdomain.com",
+  "domains": {
+    "app": 3000,
+    "api": 4000
+  }
+}
+```
+
+- `baseDomain` — domain root (Pro mode only). Can be apex or subdomain.
+- `domains` — map of subdomain name to local port.
+- `port` — proxy listen port (default: 443 with SSL, 80 without).
+
+Omit `baseDomain` for Quick mode.
+
+## Environment variables
+
+| Variable       | Required            | Description |
+|----------------|---------------------|-------------|
+| `CF_API_TOKEN` | Pro mode            | Cloudflare API token with Zone:DNS:Edit permission |
+| `CF_EMAIL`     | No                  | Email for Let's Encrypt expiry notifications |
+| `LAN_IP`       | Docker on macOS/Win | Override LAN IP auto-detection. Set to your machine's LAN IP (e.g. `192.168.1.42`). Not needed on Linux. |
+
+Place these in a `.env` file next to `dynamoip.config.json`. Never commit `.env`.
+
+## CLI
+
+```
+dynamoip [options]
+
+--config <path>   Config file path (default: ./dynamoip.config.json)
+--port <n>        Override proxy port
+--no-ssl          Plain HTTP only
+--help            Show help
+```
+
+Always run via your package manager (not bare `sudo dynamoip`) so the binary is found in `node_modules/.bin`:
+
+```bash
+sudo npm run dev:proxy
+sudo pnpm run dev:proxy
+sudo yarn dev:proxy
+```
+
+## Running in Docker
+
+Inside a Docker container on macOS/Windows, `os.networkInterfaces()` returns the container's virtual IP, not the host's LAN IP. `host.docker.internal` also returns the wrong IP (Docker Desktop VM bridge, not the LAN IP).
+
+**Solution:** set `LAN_IP` to your machine's LAN IP before starting Docker. dynamoip checks `process.env.LAN_IP` first and skips auto-detection when it is set.
+
+In docker-compose.yml:
+```yaml
+environment:
+  LAN_IP: ${LAN_IP:-}
+```
+
+On Linux, use `network_mode: host` and leave `LAN_IP` unset — auto-detection works correctly.
+
+See [docs/docker.md](docs/docker.md) for the full Docker guide including startup scripts for automatic IP detection.
+
+## Cert cache
+
+Certificates are stored in `~/.localmap/certs/`. Reused across restarts. Auto-renewed 30 days before expiry. Delete the directory to force a fresh certificate.
+
+## Project layout
+
+```
+bin/dynamoip.js       Entry point — argument parsing, startup
+src/config.js         Config loading and validation
+src/cloudflare.js     Cloudflare API (DNS records, ACME TXT)
+src/acme.js           Let's Encrypt DNS-01, cert cache, renewal
+src/certs.js          mkcert integration (Quick mode)
+src/proxy.js          HTTPS reverse proxy, WebSocket support
+src/mdns.js           mDNS — dns-sd (macOS), avahi (Linux)
+src/ip.js             LAN IP detection (env override + auto-detect)
+src/cleanup.js        Signal handling, child process cleanup
+docs/local-development.md   Using dynamoip as a dev dependency
+docs/docker.md              Running dynamoip in Docker
+```
+
+## Docs
+
+- [README.md](README.md) — full setup guide and reference
+- [docs/local-development.md](docs/local-development.md) — installing as a dev dependency
+- [docs/docker.md](docs/docker.md) — Docker support (macOS, Windows, Linux)

@@ -3,7 +3,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![npm](https://img.shields.io/npm/v/dynamoip)](https://www.npmjs.com/package/dynamoip)
 [![Node.js](https://img.shields.io/badge/node-%3E%3D14-brightgreen)](https://nodejs.org)
-[![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux-lightgrey)](#requirements)
+[![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows%20(Docker)-lightgrey)](#requirements)
 
 **Give your local services real domain names and trusted HTTPS — reachable from any device on your network.**
 
@@ -79,7 +79,7 @@ No domain needed. Uses mDNS to broadcast `.local` hostnames on the LAN. Other de
 ## Requirements
 
 - **Node.js** >= 14
-- **macOS** or **Linux** — Windows is not currently supported ([upvote or track here](https://github.com/foundanand/dynamoip/issues))
+- **macOS** or **Linux** — native. **Windows** — supported via Docker (see [docs/docker.md](docs/docker.md))
 - **sudo** — required to bind to ports 80 and 443 (privileged ports). Use `--port 8443` to avoid this.
 
 **Pro mode additionally:**
@@ -282,12 +282,13 @@ sudo yarn proxy
 | `baseDomain` | string | Pro mode only     | Domain root for subdomains. e.g. `"yourdomain.com"`             |
 | `port`       | number | No (default: 443) | Proxy listen port. Defaults to 443 with SSL, 80 without         |
 
-`.env` (Pro mode):
+`.env`:
 
-| Variable       | Required | Description                                               |
-|----------------|----------|-----------------------------------------------------------|
-| `CF_API_TOKEN` | Yes      | Cloudflare API token with Zone:DNS:Edit permission        |
-| `CF_EMAIL`     | No       | Email for Let's Encrypt expiry notifications              |
+| Variable       | Required              | Description                                               |
+|----------------|-----------------------|-----------------------------------------------------------|
+| `CF_API_TOKEN` | Pro mode              | Cloudflare API token with Zone:DNS:Edit permission        |
+| `CF_EMAIL`     | No                    | Email for Let's Encrypt expiry notifications              |
+| `LAN_IP`       | Docker on macOS/Win   | Override LAN IP auto-detection. Set to your machine's LAN IP (e.g. `192.168.1.42`). Not needed on Linux. |
 
 **Domain name rules:** letters, numbers, and hyphens only. No dots. Normalized to lowercase.
 
@@ -379,6 +380,30 @@ Your machine (192.168.x.x)
 
 ---
 
+## Running in Docker
+
+Docker is supported on all platforms. On **Linux**, use `network_mode: host` and dynamoip auto-detects the LAN IP as normal. On **macOS and Windows**, set the `LAN_IP` environment variable to your machine's LAN IP before starting Docker — the container cannot see the host's real network interfaces.
+
+```yaml
+# docker-compose.yml
+services:
+  dynamoip:
+    image: your-dynamoip-image
+    environment:
+      LAN_IP: ${LAN_IP:-}        # set on host before running docker compose
+      CF_API_TOKEN: ${CF_API_TOKEN}
+```
+
+```bash
+# macOS — detect and export before starting
+export LAN_IP=$(route -n get default | awk '/interface:/{print $2}' | xargs ipconfig getifaddr)
+docker compose up
+```
+
+See [docs/docker.md](docs/docker.md) for the full guide, including Windows instructions and a startup script that auto-detects `LAN_IP` on every run.
+
+---
+
 ## Running the examples
 
 ```bash
@@ -410,7 +435,8 @@ dynamoip/
 │   ├── ip.js              LAN IP detection
 │   └── cleanup.js         Signal handling, child process cleanup
 ├── docs/
-│   └── local-development.md   Using dynamoip in your own projects
+│   ├── local-development.md   Using dynamoip in your own projects
+│   └── docker.md              Running dynamoip in Docker
 ├── examples/
 │   ├── inventory/         Example inventory app (port 3000)
 │   └── dashboard/         Example dashboard app (port 6000)
