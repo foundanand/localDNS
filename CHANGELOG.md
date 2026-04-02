@@ -7,7 +7,41 @@ dynamoip uses [semantic versioning](https://semver.org/).
 
 ---
 
-## [1.0.0] — 2025-04-01
+## [1.0.4] — 2026-04-02
+
+### Added
+- Docker support: `LAN_IP` environment variable override allows running inside containers where auto-detected IPs are incorrect
+- `docs/docker.md` with full Docker and Docker Compose setup guide
+- `llms.txt` for LLM-readable project documentation
+- `.env.example` with documented environment variables
+
+---
+
+## [1.0.3] — 2026-04-01
+
+### Changed
+- README: replaced bare `sudo dynamoip` invocations with package manager equivalents (`sudo npm exec`, `sudo npx`, `sudo pnpm exec`, `sudo yarn`) since `node_modules/.bin` is not in sudo's restricted `PATH`
+- Added production setup section to README
+
+---
+
+## [1.0.2] — 2026-04-01
+
+### Changed
+- README: added pnpm and yarn install/run instructions alongside npm
+- Local dev docs updated with pnpm and yarn equivalents
+
+---
+
+## [1.0.1] — 2026-04-01
+
+### Changed
+- Renamed all internal references from `localDNS`/`localdns` to `dynamoip`
+- Rewrote README with clearer use-case framing
+
+---
+
+## [1.0.0] — 2026-04-01
 
 ### Added
 - Pro mode: Cloudflare DNS + Let's Encrypt wildcard certificate via DNS-01 challenge
