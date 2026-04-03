@@ -7,6 +7,25 @@ dynamoip uses [semantic versioning](https://semver.org/).
 
 ---
 
+## [1.0.5] — 2026-04-03
+
+### Added
+- **Max mode**: Cloudflare Tunnel support for public internet access — add `"tunnel": true` to config alongside `baseDomain`
+- `src/tunnel.js` — tunnel lifecycle: create/reuse named tunnel, write credentials + ingress config, spawn `cloudflared` with auto-restart
+- `docs/tunnel.md` — full Max mode setup guide including token creation walkthrough
+- `cloudflared` auto-installed on first run: Homebrew on macOS, `sudo curl` to `/usr/local/bin` on Linux
+- `TARGET_HOST` env var for Docker: controls which host the proxy forwards to (set to `host.docker.internal` on macOS/Windows)
+- Docker + Max mode docs and compose examples added to `docs/docker.md`
+
+### Changed
+- "Ready:" output now labels every URL as `[PUBLIC]` (Max mode) or `[LAN]` (Pro/Quick) so exposure level is immediately visible
+- Mode label in startup output now reads: `Max — Cloudflare Tunnel`, `Pro — Cloudflare + Let's Encrypt`, `Quick — mkcert`, or `HTTP`
+- `startProxy` accepts `bindHost` (`127.0.0.1` in Max mode, `0.0.0.0` otherwise) and `baseDomain` as explicit params
+- `src/cloudflare.js` exports `cfFetch` for reuse; adds `upsertCnameRecords` (sets `proxied: true` CNAME records for tunnel routing)
+- README updated: three modes documented, Max mode setup section, architecture diagram, config reference expanded
+
+---
+
 ## [1.0.4] — 2026-04-02
 
 ### Added

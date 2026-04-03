@@ -110,7 +110,18 @@ function loadConfig(configPath) {
     };
   }
 
-  return { port, domains, baseDomain, cloudflare };
+  // --- Optional: Max mode (Cloudflare Tunnel) ---
+  let tunnel = false;
+  if (raw.tunnel) {
+    if (!baseDomain) {
+      console.error('"tunnel" mode requires "baseDomain" to be set.');
+      console.error('Add { "baseDomain": "yourdomain.com" } to your config file.');
+      process.exit(1);
+    }
+    tunnel = true;
+  }
+
+  return { port, domains, baseDomain, cloudflare, tunnel };
 }
 
 module.exports = { loadConfig };

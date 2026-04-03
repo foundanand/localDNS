@@ -129,4 +129,35 @@ async function deleteAcmeTxtRecord(apiToken, zoneId, recordId) {
   }
 }
 
-module.exports = { getZoneId, upsertARecords, setAcmeTxtRecord, deleteAcmeTxtRecord, clearAcmeTxtRecords };
+// Upsert CNAME records pointing to a Cloudflare Tunnel (Max mode).
+// Replaces any existing A record for the same hostname if present.
+async function upsertCnameRecords(apiToken, zoneId, baseDomain, domainNames, tunnelId) {
+  const target = `${tunnelId}.cfargotunnel.com`;
+  for (const name of domainNames) {
+    const fqdn = `${name}.${baseDomain}`;
+
+    // Fetch any existing record (A or CNAME) for this name
+    const existing = await cfFetch(apiToken, 'GET', `/zones/${zoneId}/dns_records?name=${fqdn}`);
+    const record = existing.result?.[0];
+
+    if (record) {
+      if (record.type === 'CNAME' && record.content === target && record.proxied) {
+        console.log(`  ${fqdn} -> ${target}  (unchanged)`);
+        continue;
+      }
+      // Wrong type (e.g. old A record) or wrong target — delete and recreate
+      await cfFetch(apiToken, 'DELETE', `/zones/${zoneId}/dns_records/${record.id}`);
+    }
+
+    await cfFetch(apiToken, 'POST', `/zones/${zoneId}/dns_records`, {
+      type: 'CNAME',
+      name: fqdn,
+      content: target,
+      ttl: 1,       // 1 = automatic (Cloudflare managed)
+      proxied: true,
+    });
+    console.log(`  ${fqdn} -> ${target}  (${record ? 'replaced' : 'created'})`);
+  }
+}
+
+module.exports = { cfFetch, getZoneId, upsertARecords, upsertCnameRecords, setAcmeTxtRecord, deleteAcmeTxtRecord, clearAcmeTxtRecords };

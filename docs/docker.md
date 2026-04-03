@@ -130,10 +130,66 @@ services:
 
 ---
 
+## Max mode (Cloudflare Tunnel) in Docker
+
+Max mode has different requirements from Pro/Quick mode:
+
+- **No `LAN_IP` needed** — Max mode doesn't create DNS A records, so there's no IP to advertise.
+- **`TARGET_HOST` needed on macOS/Windows** — the proxy forwards to `localhost:{port}` by default, but inside a container `localhost` is the container itself. Set `TARGET_HOST=host.docker.internal` so the proxy reaches services running on the host machine.
+- **Linux with `network_mode: host`** — `localhost` resolves to the host, so `TARGET_HOST` is not needed.
+- **`cloudflared` must be in the image** — the auto-install logic (brew/curl) won't work inside most containers. Install it in your Dockerfile instead:
+
+```dockerfile
+ARG TARGETARCH=amd64
+RUN curl -fsSL https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-${TARGETARCH} \
+    -o /usr/local/bin/cloudflared && chmod +x /usr/local/bin/cloudflared
+```
+
+### docker-compose for Max mode (macOS/Windows)
+
+```yaml
+services:
+  dynamoip:
+    build: .
+    environment:
+      CF_API_TOKEN: ${CF_API_TOKEN}
+      TARGET_HOST: host.docker.internal   # forward to services on the host
+    volumes:
+      - ./dynamoip.config.json:/app/dynamoip.config.json:ro
+      - dynamoip-tunnels:/root/.localmap/tunnels
+    extra_hosts:
+      - host.docker.internal:host-gateway  # ensures host.docker.internal resolves
+
+volumes:
+  dynamoip-tunnels:
+```
+
+### docker-compose for Max mode (Linux)
+
+```yaml
+services:
+  dynamoip:
+    build: .
+    network_mode: host   # localhost inside container = host localhost
+    environment:
+      CF_API_TOKEN: ${CF_API_TOKEN}
+    volumes:
+      - ./dynamoip.config.json:/app/dynamoip.config.json:ro
+      - dynamoip-tunnels:/root/.localmap/tunnels
+
+volumes:
+  dynamoip-tunnels:
+```
+
+---
+
 ## Summary
 
-| Platform | `network_mode` | `LAN_IP` needed? |
-|---|---|---|
-| Linux | `host` | No — auto-detected |
-| macOS | *(omit)* | Yes |
-| Windows | *(omit)* | Yes |
+| Platform | Mode | `network_mode` | `LAN_IP` needed? | `TARGET_HOST` needed? |
+|---|---|---|---|---|
+| Linux | Pro/Quick | `host` | No — auto-detected | No |
+| macOS | Pro/Quick | *(omit)* | Yes | No |
+| Windows | Pro/Quick | *(omit)* | Yes | No |
+| Linux | Max | `host` | No | No |
+| macOS | Max | *(omit)* | No | Yes — `host.docker.internal` |
+| Windows | Max | *(omit)* | No | Yes — `host.docker.internal` |

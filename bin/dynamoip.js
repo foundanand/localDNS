@@ -2,13 +2,15 @@
 'use strict';
 
 const path = require('path');
+const os   = require('os');
 const { loadConfig }    = require('../src/config');
 const { getLanIp }      = require('../src/ip');
 const { registerAll }   = require('../src/mdns');
 const { startProxy }    = require('../src/proxy');
 const { obtainCert, scheduleRenewal } = require('../src/acme');
-const { upsertARecords, getZoneId }   = require('../src/cloudflare');
+const { upsertARecords, upsertCnameRecords, getZoneId } = require('../src/cloudflare');
 const { checkMkcert, generateCerts, getCaCertPath } = require('../src/certs');
+const { ensureCloudflared, getAccountId, ensureTunnel, writeTunnelConfig, startTunnel } = require('../src/tunnel');
 
 // --- Argument parsing ---
 const args  = process.argv.slice(2);
@@ -27,8 +29,20 @@ Options:
   --no-ssl          Disable HTTPS (plain HTTP, mDNS .local only)
   --help            Show this help
 
---- Pro mode (Cloudflare + Let's Encrypt) ---
-  Trusted HTTPS on every device. No cert installation needed.
+--- Max mode (Cloudflare Tunnel — public internet access) ---
+  Accessible from anywhere on the internet, not just your local network.
+  No sudo required. Cloudflare handles TLS.
+
+  dynamoip.config.json:
+    { "baseDomain": "myteam.dev", "domains": { "app": 3000 }, "tunnel": true }
+
+  .env:
+    CF_API_TOKEN=your_token  (needs Zone:DNS:Edit + Account:Cloudflare Tunnel:Edit)
+
+  Requires: cloudflared installed (brew install cloudflared)
+
+--- Pro mode (Cloudflare + Let's Encrypt — LAN only) ---
+  Trusted HTTPS on every LAN device. No cert installation needed.
 
   dynamoip.config.json:
     { "baseDomain": "local.myteam.dev", "domains": { "inventory": 3000 } }
@@ -37,7 +51,7 @@ Options:
     CF_API_TOKEN=your_cloudflare_api_token
     CF_EMAIL=you@example.com   (optional, for cert expiry alerts)
 
---- Quick mode (mDNS .local) ---
+--- Quick mode (mDNS .local — LAN only) ---
   Works on LAN only. Other devices need to install the CA cert once.
 
   dynamoip.config.json:
@@ -63,26 +77,78 @@ for (let i = 0; i < args.length; i++) {
 async function main() {
   const config  = loadConfig(configPath);
   const useAcme = !noSsl && !!config.baseDomain;
+  const useTunnel   = useAcme && config.tunnel;   // Max mode
+  const effectiveAcme = useAcme && !useTunnel;    // Pro mode (ACME only, no tunnel)
   const useMkcert = !noSsl && !useAcme && checkMkcert();
 
   let lanIp;
   try { lanIp = getLanIp(); } catch (e) { console.error(e.message); process.exit(1); }
 
-  const defaultPort = (useAcme || useMkcert) ? 443 : (config.port || 80);
+  // Max mode: proxy runs on localhost HTTP (cloudflared handles exposure)
+  // Pro/Quick: proxy on 0.0.0.0 with SSL
+  const defaultPort = useTunnel ? 8080 : (useAcme || useMkcert) ? 443 : (config.port || 80);
   const proxyPort   = portOverride ?? defaultPort;
+  const bindHost    = useTunnel ? '127.0.0.1' : '0.0.0.0';
 
-  const proto = (useAcme || useMkcert) ? 'https' : 'http';
-  const domainSuffix = useAcme ? `.${config.baseDomain}` : '.local';
+  const proto = (!useTunnel && (useAcme || useMkcert)) ? 'https' : 'http';
+
+  const modeLabel = useTunnel
+    ? `Max — Cloudflare Tunnel (${config.baseDomain})`
+    : effectiveAcme
+      ? `Pro — Cloudflare + Let's Encrypt (${config.baseDomain})`
+      : useMkcert
+        ? 'Quick — mkcert (local CA)'
+        : 'HTTP';
 
   console.log(`\ndynamoip starting...`);
   console.log(`LAN IP : ${lanIp}`);
-  console.log(`Mode   : ${useAcme ? `Cloudflare + Let's Encrypt (${config.baseDomain})` : useMkcert ? 'mkcert (local CA)' : 'HTTP'}`);
+  console.log(`Mode   : ${modeLabel}`);
   console.log('');
 
   let sslOpts = null;
 
-  // --- Cloudflare + ACME mode ---
-  if (useAcme) {
+  // --- Max mode: Cloudflare Tunnel ---
+  if (useTunnel) {
+    const { apiToken } = config.cloudflare;
+    const tunnelName = `dynamoip-${config.baseDomain}`;
+
+    console.log('Cloudflare Tunnel:');
+    const cloudflaredBin = await ensureCloudflared();
+    let zoneId, tunnelId;
+    try {
+      zoneId = await getZoneId(apiToken, config.baseDomain);
+      const accountId = await getAccountId(apiToken, zoneId);
+      const t = await ensureTunnel(apiToken, accountId, tunnelName);
+      tunnelId = t.id;
+    } catch (e) {
+      const hint = e.message.includes('10060') || e.message.includes('Tunnel')
+        ? '\n  Add "Account: Cloudflare Tunnel: Edit" permission to your API token.'
+        : '';
+      console.error(`\nTunnel error: ${e.message}${hint}\n`);
+      process.exit(1);
+    }
+    console.log('');
+
+    console.log('DNS records (CNAME -> tunnel):');
+    try {
+      await upsertCnameRecords(apiToken, zoneId, config.baseDomain, config.domains.map(d => d.name), tunnelId);
+    } catch (e) {
+      console.error(`\nCloudflare DNS error: ${e.message}\n`);
+      process.exit(1);
+    }
+    console.log('');
+
+    const credPath  = path.join(os.homedir(), '.localmap', 'tunnels', `${tunnelId}.json`);
+    const cfgPath   = writeTunnelConfig(tunnelId, credPath, config.domains, proxyPort, config.baseDomain);
+
+    console.log('Starting tunnel:');
+    startTunnel(cfgPath, tunnelName, cloudflaredBin);
+    console.log(`  cloudflared -> http://127.0.0.1:${proxyPort}`);
+    console.log('');
+  }
+
+  // --- Pro mode: Cloudflare DNS + ACME certs ---
+  if (effectiveAcme) {
     const { apiToken, email } = config.cloudflare;
     let zoneId;
 
@@ -107,7 +173,7 @@ async function main() {
     console.log('');
   }
 
-  // --- mkcert fallback mode ---
+  // --- Quick mode: mkcert ---
   if (useMkcert) {
     console.log('Certificates (mkcert):');
     const certsDir = path.join(process.cwd(), 'certs');
@@ -122,7 +188,7 @@ async function main() {
     console.log('');
   }
 
-  // --- mDNS (quick mode only — skipped when Cloudflare handles real DNS) ---
+  // --- mDNS (Quick mode only) ---
   if (!useAcme) {
     console.log('Registering mDNS (.local):');
     registerAll(config.domains, proxyPort, lanIp, !!sslOpts);
@@ -131,19 +197,35 @@ async function main() {
 
   // --- Proxy ---
   console.log('Starting proxy:');
-  const { server } = startProxy(config.domains, proxyPort, sslOpts);
+  const { server } = startProxy(config.domains, proxyPort, sslOpts, bindHost, config.baseDomain);
 
-  // Schedule background renewal now that we have the server reference for hot-reload
-  if (useAcme) {
+  // Background cert renewal for Pro mode
+  if (effectiveAcme) {
     scheduleRenewal(config.baseDomain, config.cloudflare.apiToken, config.cloudflare.email, server);
   }
 
+  // --- Ready output ---
   console.log('');
   console.log('Ready:');
+  console.log('');
+
+  const isPublic = useTunnel;
+  const label    = isPublic ? '[PUBLIC]' : '[LAN]   ';
+  const domainSuffix = useAcme ? `.${config.baseDomain}` : '.local';
+  const readyProto   = useTunnel ? 'https' : proto;
+
   config.domains.forEach(({ name }) => {
-    if (useAcme) console.log(`  ${proto}://${name}${domainSuffix}`);
-    else         console.log(`  ${proto}://${name}.local`);
+    console.log(`  ${label}  ${readyProto}://${name}${domainSuffix}`);
   });
+
+  console.log('');
+
+  if (isPublic) {
+    console.log('  Live on the internet — accessible from anywhere.');
+    console.log('  Anyone with the URL can reach these services.');
+  } else {
+    console.log('  Accessible from devices on this network only.');
+  }
 
   console.log('\nPress Ctrl+C to stop.\n');
 }

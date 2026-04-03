@@ -1,5 +1,5 @@
 # Never ship personal/dev config
-localdns.config.json
+dynamoip.config.json
 .env
 .env.*
 

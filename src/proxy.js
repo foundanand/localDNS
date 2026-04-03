@@ -86,8 +86,9 @@ function buildCertPage(certUrl, domains, proxyPort) {
 
 function buildRouteMap(domains, baseDomain) {
   const map = new Map();
+  const targetHost = process.env.TARGET_HOST || 'localhost';
   for (const { name, targetPort } of domains) {
-    const target = `http://localhost:${targetPort}`;
+    const target = `http://${targetHost}:${targetPort}`;
     map.set(`${name}.local`, target);
     map.set(name, target);
     if (baseDomain) map.set(`${name}.${baseDomain}`, target);
@@ -119,8 +120,8 @@ function makeRequestHandler(routeMap, proxy, domains) {
   };
 }
 
-function startProxy(domains, proxyPort, sslOpts) {
-  const routeMap = buildRouteMap(domains, sslOpts && sslOpts.baseDomain);
+function startProxy(domains, proxyPort, sslOpts, bindHost = '0.0.0.0', baseDomain = null) {
+  const routeMap = buildRouteMap(domains, (sslOpts && sslOpts.baseDomain) || baseDomain);
   const proxy = httpProxy.createProxyServer({ xfwd: true });
 
   proxy.on('error', (err, req, res) => {
@@ -133,7 +134,6 @@ function startProxy(domains, proxyPort, sslOpts) {
   });
 
   const handler = makeRequestHandler(routeMap, proxy, domains);
-  const baseDomain = sslOpts && sslOpts.baseDomain;
   let server;
   let redirectServer = null;
 
@@ -188,9 +188,10 @@ function startProxy(domains, proxyPort, sslOpts) {
     process.exit(1);
   });
 
-  server.listen(proxyPort, () => {
+  server.listen(proxyPort, bindHost, () => {
     const proto = sslOpts ? 'HTTPS' : 'HTTP';
-    console.log(`  ${proto} :${proxyPort}  -> proxying by Host header`);
+    const host  = bindHost === '127.0.0.1' ? '127.0.0.1' : '0.0.0.0';
+    console.log(`  ${proto} ${host}:${proxyPort}  -> proxying by Host header`);
   });
 
   return { server, redirectServer };

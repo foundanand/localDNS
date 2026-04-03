@@ -5,7 +5,7 @@
 [![Node.js](https://img.shields.io/badge/node-%3E%3D14-brightgreen)](https://nodejs.org)
 [![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows%20(Docker)-lightgrey)](#requirements)
 
-**Give your local services real domain names and trusted HTTPS — reachable from any device on your network.**
+**Give your local services real domain names and trusted HTTPS — reachable from your network or the entire internet.**
 
 ```
 https://app.yourdomain.com      →  localhost:3000
@@ -13,7 +13,7 @@ https://api.yourdomain.com      →  localhost:4000
 https://admin.yourdomain.com    →  localhost:5000
 ```
 
-No "connection not secure" warnings. No cert installation on other devices. Works on every phone, tablet, and computer on your Wi-Fi.
+No "connection not secure" warnings. No cert installation on other devices. Works on every phone, tablet, and computer on your Wi-Fi — or anywhere on the internet with Max mode.
 
 ---
 
@@ -60,15 +60,21 @@ https://files.yourdomain.com    →  Nextcloud         (port 8080)
 
 ---
 
-## Two modes
+## Three modes
 
-### Pro mode — Cloudflare + Let's Encrypt (recommended)
+### Max mode — Cloudflare Tunnel (public internet access)
+
+Your services become accessible from anywhere on the internet — not just your LAN. Uses a Cloudflare Tunnel to route all traffic (including LAN traffic) through Cloudflare's edge. No ACME cert needed; Cloudflare handles TLS. No sudo required.
+
+**What you need:** a domain on Cloudflare, a Cloudflare API token with tunnel permissions, `cloudflared` installed.
+
+### Pro mode — Cloudflare + Let's Encrypt (LAN, recommended for teams)
 
 Uses a real domain you own. dynamoip sets DNS A records in Cloudflare and obtains a Let's Encrypt wildcard certificate automatically. Every device on the network trusts it out of the box — no setup on other devices at all.
 
 **What you need:** a domain managed by Cloudflare (free tier works), a Cloudflare API token.
 
-### Quick mode — mDNS `.local`
+### Quick mode — mDNS `.local` (LAN, no domain required)
 
 No domain needed. Uses mDNS to broadcast `.local` hostnames on the LAN. Other devices need to install a CA certificate once.
 
@@ -80,7 +86,12 @@ No domain needed. Uses mDNS to broadcast `.local` hostnames on the LAN. Other de
 
 - **Node.js** >= 14
 - **macOS** or **Linux** — native. **Windows** — supported via Docker (see [docs/docker.md](docs/docker.md))
-- **sudo** — required to bind to ports 80 and 443 (privileged ports). Use `--port 8443` to avoid this.
+- **sudo** — required for Pro/Quick mode to bind to ports 80 and 443. Use `--port 8443` to avoid this. **Max mode does not need sudo.**
+
+**Max mode additionally:**
+- A domain managed by Cloudflare (free tier works)
+- Cloudflare API token with `Zone:DNS:Edit` + `Account:Cloudflare Tunnel:Edit` permissions
+- `cloudflared` — installed automatically on first run (Homebrew on macOS, binary download on Linux)
 
 **Pro mode additionally:**
 - A domain managed by Cloudflare (free tier works)
@@ -109,6 +120,88 @@ npm install -g dynamoip
 
 ---
 
+## Max mode setup
+
+Max mode exposes your local services to the public internet using Cloudflare Tunnels. No sudo required — cloudflared makes an outbound connection, so no privileged ports are needed.
+
+`cloudflared` is installed automatically on first run (via Homebrew on macOS, binary download on Linux). No manual install step needed.
+
+**1. Create `dynamoip.config.json`:**
+
+```json
+{
+  "baseDomain": "yourdomain.com",
+  "domains": {
+    "app": 3000,
+    "api": 4000
+  },
+  "tunnel": true
+}
+```
+
+**2. Create `.env`** — needs one extra token permission vs Pro mode:
+
+```env
+CF_API_TOKEN=your_cloudflare_api_token_here
+```
+
+The token needs both `Zone:DNS:Edit` and `Account:Cloudflare Tunnel:Edit` permissions. Create one at **https://dash.cloudflare.com/profile/api-tokens** — see [docs/tunnel.md](docs/tunnel.md) for the exact setup.
+
+**3. Add a script to `package.json` and run:**
+
+```json
+"scripts": {
+  "proxy:live": "dynamoip --config dynamoip.config.json"
+}
+```
+
+```bash
+npm run proxy:live    # no sudo needed
+pnpm run proxy:live
+yarn proxy:live
+```
+
+**What happens on first run:**
+1. A named Cloudflare Tunnel is created and credentials are saved to `~/.localmap/tunnels/`
+2. DNS CNAME records are set pointing each subdomain to the tunnel
+3. The local proxy starts on `127.0.0.1:8080`
+4. `cloudflared` connects to Cloudflare's edge
+
+```
+dynamoip starting...
+LAN IP : 192.168.1.42
+Mode   : Max — Cloudflare Tunnel (yourdomain.com)
+
+Cloudflare Tunnel:
+  Tunnel "dynamoip-yourdomain.com" created  (abc123...)
+
+DNS records (CNAME -> tunnel):
+  app.yourdomain.com -> abc123....cfargotunnel.com  (created)
+  api.yourdomain.com -> abc123....cfargotunnel.com  (created)
+
+Starting tunnel:
+  cloudflared -> http://127.0.0.1:8080
+
+Starting proxy:
+  HTTP 127.0.0.1:8080  -> proxying by Host header
+
+Ready:
+
+  [PUBLIC]  https://app.yourdomain.com
+  [PUBLIC]  https://api.yourdomain.com
+
+  Live on the internet — accessible from anywhere.
+  Anyone with the URL can reach these services.
+```
+
+On subsequent runs, the tunnel is reused and DNS records are left unchanged — startup is near-instant.
+
+> **Security note:** Max mode makes your services publicly reachable. Add authentication to any service you expose, and stop dynamoip when not in use.
+
+See [docs/tunnel.md](docs/tunnel.md) for the full guide, including token setup and troubleshooting.
+
+---
+
 ## Pro mode setup
 
 **1. Create `dynamoip.config.json`** in your project directory:
@@ -132,7 +225,7 @@ CF_API_TOKEN=your_cloudflare_api_token_here
 CF_EMAIL=you@example.com
 ```
 
-Get a token at **Cloudflare Dashboard → My Profile → API Tokens → Create Token**, using the **Edit zone DNS** template scoped to your domain.
+Get a token at **https://dash.cloudflare.com/profile/api-tokens** → Create Token, using the **Edit zone DNS** template scoped to your domain.
 
 **3. Add a script to `package.json`:**
 
@@ -161,7 +254,7 @@ sudo yarn dev:proxy       # yarn
 ```
 dynamoip starting...
 LAN IP : 192.168.1.42
-Mode   : Cloudflare + Let's Encrypt (yourdomain.com)
+Mode   : Pro — Cloudflare + Let's Encrypt (yourdomain.com)
 
 DNS records (Cloudflare):
   app.yourdomain.com -> 192.168.1.42  (created)
@@ -175,12 +268,15 @@ Certificates (Let's Encrypt):
   Certificate issued, valid until 2025-07-01
 
 Starting proxy:
-  HTTPS :443  -> proxying by Host header
-  HTTP  :80   -> redirects to HTTPS
+  HTTPS 0.0.0.0:443  -> proxying by Host header
+  HTTP  :80          -> redirects to HTTPS
 
 Ready:
-  https://app.yourdomain.com
-  https://api.yourdomain.com
+
+  [LAN]   https://app.yourdomain.com
+  [LAN]   https://api.yourdomain.com
+
+  Accessible from devices on this network only.
 ```
 
 After the first run, the certificate is cached in `~/.localmap/certs/` and startup is instant.
@@ -276,19 +372,21 @@ sudo yarn proxy
 
 `dynamoip.config.json`:
 
-| Field        | Type   | Required          | Description                                                     |
-|--------------|--------|-------------------|-----------------------------------------------------------------|
-| `domains`    | object | Yes               | Map of name → local port. e.g. `{ "api": 4000 }`               |
-| `baseDomain` | string | Pro mode only     | Domain root for subdomains. e.g. `"yourdomain.com"`             |
-| `port`       | number | No (default: 443) | Proxy listen port. Defaults to 443 with SSL, 80 without         |
+| Field        | Type    | Required              | Description                                                     |
+|--------------|---------|-----------------------|-----------------------------------------------------------------|
+| `domains`    | object  | Yes                   | Map of name → local port. e.g. `{ "api": 4000 }`               |
+| `baseDomain` | string  | Pro + Max mode        | Domain root for subdomains. e.g. `"yourdomain.com"`             |
+| `tunnel`     | boolean | No (default: `false`) | Set `true` to enable Max mode (Cloudflare Tunnel)               |
+| `port`       | number  | No (default: 443)     | Proxy listen port. Defaults to 8080 in Max mode, 443 in Pro/Quick, 80 in HTTP mode |
 
 `.env`:
 
 | Variable       | Required              | Description                                               |
 |----------------|-----------------------|-----------------------------------------------------------|
-| `CF_API_TOKEN` | Pro mode              | Cloudflare API token with Zone:DNS:Edit permission        |
-| `CF_EMAIL`     | No                    | Email for Let's Encrypt expiry notifications              |
-| `LAN_IP`       | Docker on macOS/Win   | Override LAN IP auto-detection. Set to your machine's LAN IP (e.g. `192.168.1.42`). Not needed on Linux. |
+| `CF_API_TOKEN` | Pro + Max mode        | Cloudflare API token (see mode-specific permission requirements above) |
+| `CF_EMAIL`     | No                    | Email for Let's Encrypt expiry notifications (Pro mode)   |
+| `LAN_IP`       | Docker on macOS/Win (Pro/Quick) | Override LAN IP auto-detection. Set to your machine's LAN IP (e.g. `192.168.1.42`). Not needed in Max mode or on Linux. |
+| `TARGET_HOST`  | Docker on macOS/Win (Max mode)  | Host the proxy forwards requests to. Set to `host.docker.internal` so the container reaches services on the host machine. Defaults to `localhost`. |
 
 **Domain name rules:** letters, numbers, and hyphens only. No dots. Normalized to lowercase.
 
@@ -309,6 +407,34 @@ Options:
 ---
 
 ## How it works
+
+### Max mode
+
+```
+Any device (LAN or internet)
+  Browser → https://app.yourdomain.com
+      │
+      │  DNS: CNAME → {tunnel-id}.cfargotunnel.com
+      │
+      ▼
+Cloudflare edge  (handles TLS)
+      │
+      │  Encrypted tunnel (outbound from your machine)
+      ▼
+cloudflared daemon (on your machine)
+      │
+      │  http://127.0.0.1:8080
+      ▼
+dynamoip proxy (localhost only)
+      │
+      ├──  app.yourdomain.com  →  localhost:3000
+      └──  api.yourdomain.com  →  localhost:4000
+```
+
+1. **Named Cloudflare Tunnel** — created via API on first run. Credentials stored in `~/.localmap/tunnels/`. Reused on every subsequent startup.
+2. **CNAME DNS records** — each subdomain points to `{tunnel-id}.cfargotunnel.com`. Cloudflare routes incoming requests to the tunnel.
+3. **cloudflared daemon** — makes an outbound connection to Cloudflare. No inbound ports needed. No firewall rules. No sudo.
+4. **Local proxy on 127.0.0.1** — the proxy is not LAN-exposed; all external and LAN traffic goes through Cloudflare's edge.
 
 ### Pro mode
 
@@ -427,7 +553,8 @@ dynamoip/
 │   └── dynamoip.js        Entry point — argument parsing, startup orchestration
 ├── src/
 │   ├── config.js          Config loading, validation, .env parsing
-│   ├── cloudflare.js      Cloudflare API — zone lookup, A records, ACME TXT records
+│   ├── cloudflare.js      Cloudflare API — zone lookup, A/CNAME records, ACME TXT records
+│   ├── tunnel.js          Cloudflare Tunnel lifecycle — create, credential storage, cloudflared
 │   ├── acme.js            Let's Encrypt DNS-01 flow, cert cache, renewal scheduler
 │   ├── certs.js           mkcert integration (quick mode)
 │   ├── proxy.js           HTTP/HTTPS reverse proxy, WebSocket support
@@ -436,7 +563,8 @@ dynamoip/
 │   └── cleanup.js         Signal handling, child process cleanup
 ├── docs/
 │   ├── local-development.md   Using dynamoip in your own projects
-│   └── docker.md              Running dynamoip in Docker
+│   ├── docker.md              Running dynamoip in Docker
+│   └── tunnel.md              Max mode — Cloudflare Tunnel setup guide
 ├── examples/
 │   ├── inventory/         Example inventory app (port 3000)
 │   └── dashboard/         Example dashboard app (port 6000)
@@ -467,7 +595,19 @@ After a new A record, DNS can take up to 60 seconds to propagate. TTL is set to 
 Do not run `sudo dynamoip` directly — sudo uses a restricted PATH that doesn't include `node_modules/.bin`. Always run via your package manager: `sudo npm run dev:proxy`, `sudo pnpm run dev:proxy`, or `sudo yarn dev:proxy`.
 
 **`EACCES` on port 443 or 80**
-Run with `sudo`. This is required to bind to privileged ports (< 1024). Use `--port 8443` to avoid sudo — your URLs will include the port number.
+Run with `sudo`. This is required to bind to privileged ports (< 1024). Use `--port 8443` to avoid sudo — your URLs will include the port number. Max mode does not require sudo.
+
+**Max mode: `cloudflared is required for Max mode`**
+Install cloudflared: `brew install cloudflared` (macOS) or see [Cloudflare's install docs](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/).
+
+**Max mode: `Cloudflare API error` on tunnel creation**
+Your token likely lacks `Account:Cloudflare Tunnel:Edit` permission. See [docs/tunnel.md](docs/tunnel.md) for exact token setup.
+
+**Max mode: `tunnel: true` but no `baseDomain`**
+Max mode requires a `baseDomain`. Add `"baseDomain": "yourdomain.com"` to your config.
+
+**Max mode: domains accessible on LAN but not externally**
+DNS CNAME records may not have propagated yet. Wait up to 60 seconds after the first run. You can verify with `dig app.yourdomain.com` — should return `CNAME → {tunnel-id}.cfargotunnel.com`.
 
 **Quick mode: `.local` not resolving on another device**
 Both devices must be on the same Wi-Fi (not one on Ethernet). Check your firewall allows UDP 5353. Verify on macOS with `dns-sd -G v4 app.local`.
