@@ -1,14 +1,16 @@
 # dynamoip
 
-> Give local dev servers real domain names and trusted HTTPS — reachable from any device on your network.
+> Give local dev servers real domain names and trusted HTTPS — reachable from your network or the entire internet.
 
-dynamoip is a reverse proxy and DNS automation tool for local development and self-hosted services. It runs on your machine, registers DNS records pointing to your LAN IP, obtains or generates TLS certificates, and proxies HTTPS traffic to your local services by hostname.
+dynamoip is a reverse proxy and DNS automation tool for local development and self-hosted services. It runs on your machine, manages DNS records, obtains or generates TLS certificates, and proxies HTTPS traffic to your local services by hostname. With Max mode, it can also expose services publicly via Cloudflare Tunnel — no open ports, no firewall changes needed.
 
-## Two modes
+## Three modes
 
-**Pro mode** — uses a real domain you own, managed by Cloudflare. dynamoip sets A records in Cloudflare and obtains a Let's Encrypt wildcard certificate via DNS-01. Every device on the LAN trusts HTTPS out of the box.
+**Max mode** — exposes services to the public internet via Cloudflare Tunnel. No sudo required. Cloudflare handles TLS. `cloudflared` is installed automatically on first run. Activated by adding `"tunnel": true` to config alongside `baseDomain`.
 
-**Quick mode** — no domain needed. Uses mDNS (`.local` hostnames) and mkcert. Other devices need the CA cert installed once.
+**Pro mode** — LAN access using a real domain you own. dynamoip sets A records in Cloudflare and obtains a Let's Encrypt wildcard certificate via DNS-01. Every device on the LAN trusts HTTPS out of the box. Requires sudo to bind to port 443.
+
+**Quick mode** — LAN access with no domain needed. Uses mDNS (`.local` hostnames) and mkcert. Other devices need the CA cert installed once. Requires sudo.
 
 ## Installation
 
@@ -27,23 +29,26 @@ Requires Node.js >= 14. Runs on macOS, Linux, and Windows (Windows via Docker on
   "domains": {
     "app": 3000,
     "api": 4000
-  }
+  },
+  "tunnel": true
 }
 ```
 
-- `baseDomain` — domain root (Pro mode only). Can be apex or subdomain.
+- `baseDomain` — domain root (Pro + Max mode). Can be apex or subdomain.
 - `domains` — map of subdomain name to local port.
-- `port` — proxy listen port (default: 443 with SSL, 80 without).
+- `tunnel` — set `true` to enable Max mode (Cloudflare Tunnel). Requires `baseDomain`.
+- `port` — proxy listen port. Defaults: 8080 in Max mode, 443 in Pro/Quick, 80 in HTTP mode.
 
-Omit `baseDomain` for Quick mode.
+Omit `baseDomain` for Quick mode. Omit `tunnel` (or set `false`) for Pro mode.
 
 ## Environment variables
 
-| Variable       | Required            | Description |
-|----------------|---------------------|-------------|
-| `CF_API_TOKEN` | Pro mode            | Cloudflare API token with Zone:DNS:Edit permission |
-| `CF_EMAIL`     | No                  | Email for Let's Encrypt expiry notifications |
-| `LAN_IP`       | Docker on macOS/Win | Override LAN IP auto-detection. Set to your machine's LAN IP (e.g. `192.168.1.42`). Not needed on Linux. |
+| Variable       | Required                        | Description |
+|----------------|---------------------------------|-------------|
+| `CF_API_TOKEN` | Pro + Max mode                  | Cloudflare API token. Pro: needs `Zone:DNS:Edit`. Max: needs `Zone:DNS:Edit` + `Account:Cloudflare Tunnel:Edit`. Create at https://dash.cloudflare.com/profile/api-tokens |
+| `CF_EMAIL`     | No                              | Email for Let's Encrypt expiry notifications (Pro mode only) |
+| `LAN_IP`       | Docker on macOS/Win (Pro/Quick) | Override LAN IP auto-detection. Not needed in Max mode. |
+| `TARGET_HOST`  | Docker on macOS/Win (Max mode)  | Host the proxy forwards to. Set `host.docker.internal` so the container reaches services on the host machine. Defaults to `localhost`. |
 
 Place these in a `.env` file next to `dynamoip.config.json`. Never commit `.env`.
 
@@ -58,52 +63,96 @@ dynamoip [options]
 --help            Show help
 ```
 
-Always run via your package manager (not bare `sudo dynamoip`) so the binary is found in `node_modules/.bin`:
+Max mode does not require sudo. Pro and Quick mode require sudo to bind to ports 80 and 443:
 
 ```bash
+# Max mode — no sudo
+npm run proxy:live
+
+# Pro / Quick mode
 sudo npm run dev:proxy
 sudo pnpm run dev:proxy
 sudo yarn dev:proxy
 ```
 
-## Running in Docker
+Always run via your package manager (not bare `sudo dynamoip`) so the binary is found in `node_modules/.bin`.
 
-Inside a Docker container on macOS/Windows, `os.networkInterfaces()` returns the container's virtual IP, not the host's LAN IP. `host.docker.internal` also returns the wrong IP (Docker Desktop VM bridge, not the LAN IP).
+## Ready output
 
-**Solution:** set `LAN_IP` to your machine's LAN IP before starting Docker. dynamoip checks `process.env.LAN_IP` first and skips auto-detection when it is set.
+dynamoip labels every URL by exposure level:
 
-In docker-compose.yml:
-```yaml
-environment:
-  LAN_IP: ${LAN_IP:-}
+```
+[PUBLIC]  https://app.yourdomain.com    ← Max mode — internet accessible
+[LAN]     https://app.yourdomain.com    ← Pro mode — LAN only
+[LAN]     https://app.local             ← Quick mode — LAN only
 ```
 
-On Linux, use `network_mode: host` and leave `LAN_IP` unset — auto-detection works correctly.
+## How Max mode works
 
-See [docs/docker.md](docs/docker.md) for the full Docker guide including startup scripts for automatic IP detection.
+```
+Any device (LAN or internet)
+  → https://app.yourdomain.com
+  → DNS CNAME → {tunnel-id}.cfargotunnel.com
+  → Cloudflare edge (terminates TLS)
+  → cloudflared daemon (outbound tunnel, on your machine)
+  → http://127.0.0.1:8080
+  → dynamoip proxy (localhost only)
+  → localhost:3000
+```
 
-## Cert cache
+- Tunnel credentials stored in `~/.localmap/tunnels/{id}.json` (mode 0600)
+- Tunnel config rewritten each startup so ingress stays in sync with `domains`
+- On restart, existing tunnel is reused — DNS is unchanged
+- `cloudflared` auto-installed: Homebrew on macOS, `sudo curl` to `/usr/local/bin` on Linux
 
-Certificates are stored in `~/.localmap/certs/`. Reused across restarts. Auto-renewed 30 days before expiry. Delete the directory to force a fresh certificate.
+## Running in Docker
+
+**Max mode (macOS/Windows):** set `TARGET_HOST=host.docker.internal`. No `LAN_IP` needed. Install `cloudflared` in the Dockerfile (see `docs/docker.md`).
+
+**Max mode (Linux):** use `network_mode: host`. No extra env vars needed.
+
+**Pro/Quick mode (macOS/Windows):** set `LAN_IP` to your machine's LAN IP. Use `${LAN_IP:-}` in docker-compose to pass it through.
+
+**Pro/Quick mode (Linux):** use `network_mode: host` and leave `LAN_IP` unset.
+
+See [docs/docker.md](docs/docker.md) for full Docker guide with compose examples.
+
+## Cert and tunnel storage
+
+```
+~/.localmap/
+├── certs/                    Pro mode — Let's Encrypt cert cache
+│   ├── wildcard.pem
+│   ├── wildcard-key.pem
+│   └── meta.json
+└── tunnels/                  Max mode — tunnel credentials
+    ├── {tunnel-id}.json      (mode 0600, created once)
+    └── config.yml            (rewritten each startup)
+```
+
+Pro mode certs auto-renew 30 days before expiry with hot-reload (no restart needed). Delete `~/.localmap/certs/` to force a fresh certificate.
 
 ## Project layout
 
 ```
-bin/dynamoip.js       Entry point — argument parsing, startup
-src/config.js         Config loading and validation
-src/cloudflare.js     Cloudflare API (DNS records, ACME TXT)
-src/acme.js           Let's Encrypt DNS-01, cert cache, renewal
+bin/dynamoip.js       Entry point — argument parsing, startup orchestration
+src/config.js         Config loading, validation, .env parsing
+src/cloudflare.js     Cloudflare API — zone lookup, A/CNAME records, ACME TXT
+src/tunnel.js         Cloudflare Tunnel — create/reuse, credentials, cloudflared
+src/acme.js           Let's Encrypt DNS-01, cert cache, renewal scheduler
 src/certs.js          mkcert integration (Quick mode)
-src/proxy.js          HTTPS reverse proxy, WebSocket support
+src/proxy.js          HTTP/HTTPS reverse proxy, WebSocket support
 src/mdns.js           mDNS — dns-sd (macOS), avahi (Linux)
 src/ip.js             LAN IP detection (env override + auto-detect)
 src/cleanup.js        Signal handling, child process cleanup
+docs/tunnel.md        Max mode setup guide
+docs/docker.md        Docker support (macOS, Windows, Linux)
 docs/local-development.md   Using dynamoip as a dev dependency
-docs/docker.md              Running dynamoip in Docker
 ```
 
 ## Docs
 
 - [README.md](README.md) — full setup guide and reference
-- [docs/local-development.md](docs/local-development.md) — installing as a dev dependency
-- [docs/docker.md](docs/docker.md) — Docker support (macOS, Windows, Linux)
+- [docs/tunnel.md](docs/tunnel.md) — Max mode (Cloudflare Tunnel) setup
+- [docs/docker.md](docs/docker.md) — Docker support
+- [docs/local-development.md](docs/local-development.md) — dev dependency setup

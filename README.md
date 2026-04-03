@@ -540,7 +540,8 @@ node examples/inventory/server.js    # port 3000
 node examples/dashboard/server.js    # port 6000
 
 # Terminal 3 — from the dynamoip repo root
-sudo npm run start
+npm start   # Max mode — no sudo needed
+# sudo npm start  # Pro/Quick mode
 ```
 
 ---
